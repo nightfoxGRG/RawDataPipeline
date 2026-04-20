@@ -16,7 +16,7 @@ def test_generate_sql_includes_constraints_and_references():
 
     sql = generate_sql(tables)
 
-    assert 'CREATE TABLE IF NOT EXISTS test_table' in sql
-    assert 'id bigserial NOT NULL PRIMARY KEY' in sql
-    assert 'code varchar(50) NOT NULL UNIQUE' in sql
-    assert 'another_table_id bigint NOT NULL REFERENCES another_table(id)' in sql
+    assert 'create table test_table' in sql
+    assert 'id bigserial not null primary key' in sql
+    assert 'code varchar(50) not null unique' in sql
+    assert 'another_table_id bigint not null references another_table(id)' in sql

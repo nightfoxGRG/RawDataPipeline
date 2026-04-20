@@ -9,7 +9,8 @@ body {
 }
 
 .container {
-  max-width: 900px;
+  width: 90%;
+  max-width: 1200px;
   margin: 0 auto;
 }
 
@@ -32,10 +33,12 @@ textarea {
 }
 
 button {
+  display: block;
   background: #1a73e8;
   color: #fff;
   border: 0;
   padding: 10px 14px;
   border-radius: 6px;
   cursor: pointer;
+  margin-top: 12px;
 }
