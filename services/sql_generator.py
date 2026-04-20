@@ -26,7 +26,10 @@ def format_column(column: ColumnConfig) -> str:
     if column.foreign_key:
         parts.append(f'references {column.foreign_key}')
 
-    return ' '.join(parts)
+    result = ' '.join(parts)
+    if column.label:
+        result += f' -- {column.label}'
+    return result
 
 
 def _format_type(db_type: str, size: str | None) -> str:

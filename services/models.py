@@ -11,6 +11,7 @@ class ColumnConfig:
     primary_key: bool = False
     foreign_key: str | None = None
     default: str | None = None
+    label: str | None = None
 
 
 @dataclass

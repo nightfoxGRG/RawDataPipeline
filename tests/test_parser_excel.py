@@ -13,6 +13,10 @@ def test_parse_excel_tables_config_like_template():
 
     ws['A1'] = 'Наименование таблицы'
     ws['B1'] = 'test_table'
+    ws['A2'] = 'Наименование колонки'
+    ws['B2'] = 'Идентификатор'
+    ws['C2'] = 'Код'
+    ws['D2'] = 'ID другой таблицы'
     ws['A3'] = 'Код колонки в БД'
     ws['B3'] = 'id'
     ws['C3'] = 'code'
@@ -44,6 +48,9 @@ def test_parse_excel_tables_config_like_template():
     assert tables[0].columns[1].size == '50'
     assert tables[0].columns[0].primary_key is True
     assert tables[0].columns[2].foreign_key == 'another_table(id)'
+    assert tables[0].columns[0].label == 'Идентификатор'
+    assert tables[0].columns[1].label == 'Код'
+    assert tables[0].columns[2].label == 'ID другой таблицы'
 
 
 def test_parse_excel_references_key_without_reference_raises_error():

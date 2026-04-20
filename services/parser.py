@@ -16,6 +16,7 @@ class ConfigParseError(ValueError):
 
 TABLE_NAME_LABELS = {'наименование таблицы', 'table_name', 'table name'}
 COLUMN_CODE_LABELS = {'код колонки в бд', 'column_code', 'column code'}
+COLUMN_NAME_LABELS = {'наименование колонки', 'column_name', 'column label', 'label'}
 TYPE_LABELS = {'тип', 'type'}
 SIZE_LABELS = {'размерность', 'size', 'length'}
 REQUIRED_LABELS = {'обязательность', 'required', 'nullable'}
@@ -108,6 +109,7 @@ def _parse_structured_tables(data: dict | None) -> list[TableConfig]:
                     primary_key=_to_bool(column_item.get('primary_key', False), default=False),
                     foreign_key=_normalize_text(column_item.get('foreign_key')),
                     default=_normalize_text(column_item.get('default')),
+                    label=_normalize_text(column_item.get('label')),
                 )
             )
 
@@ -164,6 +166,7 @@ def _parse_excel_table_block(rows: list[list], start_index: int) -> tuple[TableC
 
     code_row = _find_row(row_map, COLUMN_CODE_LABELS)
     type_row = _find_row(row_map, TYPE_LABELS)
+    name_row = _find_row(row_map, COLUMN_NAME_LABELS)
     size_row = _find_row(row_map, SIZE_LABELS)
     required_row = _find_row(row_map, REQUIRED_LABELS)
     unique_row = _find_row(row_map, UNIQUE_LABELS)
@@ -177,6 +180,7 @@ def _parse_excel_table_block(rows: list[list], start_index: int) -> tuple[TableC
     max_len = max(
         len(code_row),
         len(type_row),
+        len(name_row or []),
         len(size_row or []),
         len(required_row or []),
         len(unique_row or []),
@@ -213,6 +217,7 @@ def _parse_excel_table_block(rows: list[list], start_index: int) -> tuple[TableC
                 primary_key='primary key' in key_value or key_value == 'pk',
                 foreign_key=reference_value if ('references' in key_value or reference_value) else None,
                 default=_cell(default_row, idx),
+                label=_cell(name_row, idx),
             )
         )
 
