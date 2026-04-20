@@ -16,7 +16,8 @@ def read_uploaded_file(file_storage: FileStorage | None) -> tuple[bytes, str]:
     dot_position = filename.rfind('.')
     extension = filename[dot_position:].lower() if dot_position != -1 else ''
     if extension not in ALLOWED_EXTENSIONS:
-        raise UploadError('Поддерживаются только файлы: .xlsx, .yaml, .yml, .json, .toml, .ini')
+        allowed = ', '.join(sorted(ALLOWED_EXTENSIONS))
+        raise UploadError(f'Поддерживаются только файлы: {allowed}')
 
     content = file_storage.read()
     if not content:

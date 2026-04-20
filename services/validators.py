@@ -57,7 +57,7 @@ def _validate_identifier(entity: str, value: str, errors: list[str]) -> None:
     if not _IDENTIFIER_PATTERN.match(value):
         errors.append(
             f'{entity} "{value}" содержит недопустимые символы. '
-            'Разрешены только латиница, цифры и _, первый символ — буква или _. '
+            'Разрешены только латиница, цифры и _, первый символ — буква или _.'
         )
     if value.upper() in _POSTGRES_RESERVED_WORDS:
         errors.append(f'{entity} "{value}" использует зарезервированное слово PostgreSQL.')
