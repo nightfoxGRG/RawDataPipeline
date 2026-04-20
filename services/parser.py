@@ -27,7 +27,7 @@ DEFAULT_LABELS = {'default', 'значение по умолчанию'}
 
 def parse_tables_config(content: bytes, filename: str) -> list[TableConfig]:
     extension = Path(filename).suffix.lower()
-    if extension == '.xlsx':
+    if extension in {'.xlsx', '.xlsm'}:
         tables = _parse_excel(content)
     elif extension in {'.yaml', '.yml'}:
         data = yaml.safe_load(content.decode('utf-8'))
