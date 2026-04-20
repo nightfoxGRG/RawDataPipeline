@@ -197,6 +197,12 @@ def _parse_excel_table_block(rows: list[list], start_index: int) -> tuple[TableC
         key_value = (_cell(key_row, idx) or '').lower()
         reference_value = _cell(reference_row, idx)
 
+        if ('references' in key_value or key_value in {'fk', 'foreign key'}) and not reference_value:
+            raise ConfigParseError(
+                f'Колонка {name} таблицы {table_name}: задан ключ references, '
+                'но не указана ссылка на таблицу.'
+            )
+
         columns.append(
             ColumnConfig(
                 name=name,
