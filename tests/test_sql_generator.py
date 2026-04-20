@@ -45,7 +45,27 @@ def test_generate_sql_appends_column_label_as_comment():
     assert not re.search(r'age\s+integer\s+--', sql)
 
 
-def test_generate_sql_aligns_columns_within_table():
+def test_generate_sql_aligns_comments_within_table():
+    tables = [
+        TableConfig(
+            name='test_table',
+            columns=[
+                ColumnConfig(name='id', db_type='bigserial', nullable=False, primary_key=True, label='Ид'),
+                ColumnConfig(name='code', db_type='varchar', size='50', nullable=False, label='Код'),
+                ColumnConfig(name='name', db_type='varchar', size='250', label='Наименование'),
+                ColumnConfig(name='another_table_id', db_type='bigint', nullable=False,
+                             foreign_key='another_table(id)', label='Ссылочный ключ'),
+            ],
+        )
+    ]
+
+    sql = generate_sql(tables)
+    comment_positions = [
+        line.index('--') for line in sql.splitlines() if '--' in line
+    ]
+    assert len(set(comment_positions)) == 1, (
+        f'Comments are not aligned — found positions: {comment_positions}'
+    )
     tables = [
         TableConfig(
             name='orders',
