@@ -159,3 +159,28 @@ def test_parse_excel_invalid_unique_value_raises_error():
 
     with pytest.raises(ConfigParseError, match='Уникальность'):
         parse_tables_config(payload.getvalue(), 'config.xlsx')
+
+
+def test_parse_excel_invalid_reference_format_raises_error():
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'tables_config'
+
+    ws['A1'] = 'Наименование таблицы'
+    ws['B1'] = 'test_table'
+    ws['A3'] = 'Код колонки в БД'
+    ws['B3'] = 'id'
+    ws['C3'] = 'fk_col'
+    ws['A4'] = 'Тип'
+    ws['B4'] = 'bigserial'
+    ws['C4'] = 'bigint'
+    ws['A8'] = 'Ключ'
+    ws['C8'] = 'references'
+    ws['A9'] = 'Ссылка на таблицу'
+    ws['C9'] = 'other_table.id'  # invalid — must be other_table(id)
+
+    payload = BytesIO()
+    wb.save(payload)
+
+    with pytest.raises(ConfigParseError, match='некорректный формат ссылки'):
+        parse_tables_config(payload.getvalue(), 'config.xlsx')

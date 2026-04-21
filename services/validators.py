@@ -4,6 +4,7 @@ from services.models import ConfigParseError, TableConfig
 
 
 _IDENTIFIER_PATTERN = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
+_REFERENCE_PATTERN = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*\([A-Za-z_][A-Za-z0-9_]*\)$')
 
 # subset of PostgreSQL keywords frequently causing naming conflicts
 _POSTGRES_RESERVED_WORDS = {
@@ -91,4 +92,14 @@ def _validate_yes_no_cell(value: str | None, field: str, column: str, table: str
         raise ConfigParseError(
             f'Колонка {column} таблицы {table}: поле "{field}" содержит недопустимое значение '
             f'"{value}". Допустимы только "да", "нет" или пустое значение.'
+        )
+
+
+def _validate_reference_cell(value: str | None, column: str, table: str) -> None:
+    if value is None:
+        return
+    if not _REFERENCE_PATTERN.match(value):
+        raise ConfigParseError(
+            f'Колонка {column} таблицы {table}: некорректный формат ссылки '
+            f'"{value}". Ожидается формат table(column).'
         )
