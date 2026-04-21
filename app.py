@@ -1,4 +1,6 @@
-from flask import Flask, Response, render_template, request
+from pathlib import Path
+
+from flask import Flask, Response, render_template, request, send_from_directory
 
 from services.parser import ConfigParseError, parse_tables_config
 from services.sql_generator import generate_sql
@@ -25,6 +27,16 @@ def create_app() -> Flask:
                 errors.append(str(exc))
 
         return render_template('index.html', sql_output=sql_output, errors=errors)
+
+    @app.get('/download-template')
+    def download_template():
+        static_dir = Path(app.root_path) / 'static'
+        return send_from_directory(
+            static_dir,
+            'template.xlsm',
+            as_attachment=True,
+            download_name='template.xlsm',
+        )
 
     @app.post('/download')
     def download_sql():
