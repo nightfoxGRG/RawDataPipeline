@@ -6,35 +6,20 @@ from io import BytesIO
 from pathlib import Path
 
 from openpyxl import load_workbook
-from openpyxl.styles import Font, PatternFill, Alignment
 
 
 _TEMPLATE_PATH = Path(__file__).parent.parent / 'static' / 'TablesConfig.xlsm'
 
-_V2_HEADERS = [
-    'Описание',
-    'Код колонки в БД',
-    'Тип',
-    'Размерность',
-    'Обязательность',
-    'Уникальность',
-    'Первичный ключ',
-    'Внешний ключ',
-    'Значение по умолчанию',
-]
-
-# Approximate column widths (characters) for each header
-_COL_WIDTHS = [20, 20, 14, 12, 14, 12, 14, 25, 22]
-
-_HEADER_FILL = PatternFill(start_color='D9E1F2', end_color='D9E1F2', fill_type='solid')
-_TABLE_FILL = PatternFill(start_color='BDD7EE', end_color='BDD7EE', fill_type='solid')
+# Number of data columns in one table block (matches the template header row)
+_V2_DATA_COLS = 9
 
 
 def generate_excel_config_v2(table_name: str, columns: list[dict]) -> bytes:
     """Build and return bytes of an xlsm workbook containing a tables_config_v2 sheet.
 
-    Uses TablesConfig.xlsm as a template so that VBA macros and data-validation
-    drop-downs from the Параметры sheet are preserved.
+    Loads TablesConfig.xlsm as a template and fills in the first table block
+    without deleting any rows or overwriting styles, formulas, or other settings.
+    Only cell values are written.
 
     Each dict in *columns* must contain at least:
       'code'    – column code (SQL identifier)
@@ -43,48 +28,31 @@ def generate_excel_config_v2(table_name: str, columns: list[dict]) -> bytes:
     """
     wb = load_workbook(_TEMPLATE_PATH, keep_vba=True)
 
-    # ----- Clear existing sample data from both config sheets -----
-    for sheet_name in ('tables_config', 'tables_config_v2'):
-        if sheet_name in wb.sheetnames:
-            ws_clear = wb[sheet_name]
-            if ws_clear.max_row >= 1:
-                ws_clear.delete_rows(1, ws_clear.max_row)
+    # ----- Clear sample data values from tables_config (preserve row structure) -----
+    if 'tables_config' in wb.sheetnames:
+        tc = wb['tables_config']
+        for row in tc.iter_rows(min_row=1, max_row=tc.max_row, min_col=2, max_col=tc.max_column):
+            for cell in row:
+                cell.value = None
 
     ws = wb['tables_config_v2']
 
-    # ----- Row 1: "Наименование таблицы" label + actual table name -----
-    label_cell = ws.cell(row=1, column=1, value='Наименование таблицы')
-    label_cell.font = Font(bold=True)
-    label_cell.fill = _TABLE_FILL
-    label_cell.alignment = Alignment(horizontal='left', vertical='center')
+    # ----- Write table name into B1 (A1 already holds "Наименование таблицы") -----
+    ws.cell(row=1, column=2).value = table_name
 
-    name_cell = ws.cell(row=1, column=2, value=table_name)
-    name_cell.font = Font(bold=True)
-    name_cell.fill = _TABLE_FILL
-    name_cell.alignment = Alignment(horizontal='left', vertical='center')
+    # ----- Clear old sample data values in block-1 data rows (rows 3+, cols A-I) -----
+    for row in ws.iter_rows(min_row=3, max_row=ws.max_row, min_col=1, max_col=_V2_DATA_COLS):
+        for cell in row:
+            cell.value = None
 
-    # ----- Row 2: headers -----
-    for col_idx, header in enumerate(_V2_HEADERS, start=1):
-        cell = ws.cell(row=2, column=col_idx, value=header)
-        cell.font = Font(bold=True)
-        cell.fill = _HEADER_FILL
-        cell.alignment = Alignment(horizontal='center', vertical='center')
-
-    # ----- Rows 3+: column data -----
+    # ----- Write column data starting at row 3 -----
     for row_idx, col_info in enumerate(columns, start=3):
-        ws.cell(row=row_idx, column=1, value=col_info.get('label') or col_info['code'])
-        ws.cell(row=row_idx, column=2, value=col_info['code'])
-        ws.cell(row=row_idx, column=3, value=col_info['db_type'])
+        ws.cell(row=row_idx, column=1).value = col_info.get('label') or col_info['code']
+        ws.cell(row=row_idx, column=2).value = col_info['code']
+        ws.cell(row=row_idx, column=3).value = col_info['db_type']
         size = col_info.get('size')
         if size:
-            ws.cell(row=row_idx, column=4, value=size)
-
-    # ----- Column widths -----
-    for col_idx, width in enumerate(_COL_WIDTHS, start=1):
-        ws.column_dimensions[ws.cell(row=1, column=col_idx).column_letter].width = width
-
-    # ----- Freeze panes below header row -----
-    ws.freeze_panes = 'A3'
+            ws.cell(row=row_idx, column=4).value = size
 
     output = BytesIO()
     wb.save(output)
