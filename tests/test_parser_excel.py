@@ -101,6 +101,7 @@ V2_HEADERS = [
     'Уникальность',
     'Первичный ключ',
     'Внешний ключ',
+    'Значение по умолчанию',
 ]
 
 
@@ -382,3 +383,55 @@ def test_parse_excel_invalid_reference_format_raises_error():
 
     with pytest.raises(ConfigParseError, match='некорректный формат ссылки'):
         parse_tables_config(payload.getvalue(), 'config.xlsx')
+
+
+def test_parse_excel_v1_default_value():
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'tables_config'
+
+    ws['A1'] = 'Наименование таблицы'
+    ws['B1'] = 'settings'
+    ws['A3'] = 'Код колонки в БД'
+    ws['B3'] = 'status'
+    ws['C3'] = 'score'
+    ws['A4'] = 'Тип'
+    ws['B4'] = 'varchar'
+    ws['C4'] = 'integer'
+    ws['A5'] = 'Значение по умолчанию'
+    ws['B5'] = 'active'
+    ws['C5'] = '0'
+
+    payload = BytesIO()
+    wb.save(payload)
+
+    tables = parse_tables_config(payload.getvalue(), 'config.xlsx')
+
+    assert len(tables) == 1
+    cols = {c.name: c for c in tables[0].columns}
+    assert cols['status'].default == 'active'
+    assert cols['score'].default == '0'
+
+
+def test_parse_excel_v2_default_value():
+    content = _make_v2_workbook([
+        {
+            'name': 'settings',
+            'headers': V2_HEADERS,
+            'rows': [
+                {'Код колонки в БД': 'status', 'Тип': 'varchar',
+                 'Значение по умолчанию': 'active'},
+                {'Код колонки в БД': 'score', 'Тип': 'integer',
+                 'Значение по умолчанию': '0'},
+                {'Код колонки в БД': 'note', 'Тип': 'text'},
+            ],
+        }
+    ])
+
+    tables = parse_tables_config(content, 'config.xlsm')
+
+    assert len(tables) == 1
+    cols = {c.name: c for c in tables[0].columns}
+    assert cols['status'].default == 'active'
+    assert cols['score'].default == '0'
+    assert cols['note'].default is None
