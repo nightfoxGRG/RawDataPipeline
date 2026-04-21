@@ -1,6 +1,6 @@
 import re
 
-from services.models import TableConfig
+from services.models import ConfigParseError, TableConfig
 
 
 _IDENTIFIER_PATTERN = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
@@ -82,3 +82,13 @@ def _validate_reference(reference: str, table_name: str, column_name: str, error
 
     _validate_identifier('Таблица (FK)', ref_table, errors)
     _validate_identifier('Колонка (FK)', ref_column, errors)
+
+
+def _validate_yes_no_cell(value: str | None, field: str, column: str, table: str) -> None:
+    if value is None:
+        return
+    if value.lower() not in {'да', 'нет'}:
+        raise ConfigParseError(
+            f'Колонка {column} таблицы {table}: поле "{field}" содержит недопустимое значение '
+            f'"{value}". Допустимы только "да", "нет" или пустое значение.'
+        )

@@ -7,11 +7,8 @@ import toml
 import yaml
 from openpyxl import load_workbook
 
-from services.models import ColumnConfig, TableConfig
-
-
-class ConfigParseError(ValueError):
-    """Raised when the config file cannot be parsed."""
+from services.models import ColumnConfig, ConfigParseError, TableConfig
+from services.validators import _validate_yes_no_cell
 
 
 TABLE_NAME_LABELS = {'наименование таблицы', 'table_name', 'table name'}
@@ -225,16 +222,6 @@ def _parse_excel_table_block(rows: list[list], start_index: int) -> tuple[TableC
         )
 
     return TableConfig(name=table_name, columns=columns), end_index
-
-
-def _validate_yes_no_cell(value: str | None, field: str, column: str, table: str) -> None:
-    if value is None:
-        return
-    if value.lower() not in {'да', 'нет'}:
-        raise ConfigParseError(
-            f'Колонка {column} таблицы {table}: поле "{field}" содержит недопустимое значение '
-            f'"{value}". Допустимы только "да", "нет" или пустое значение.'
-        )
 
 
 def _find_row(row_map: dict[str, list], names: set[str]) -> list | None:

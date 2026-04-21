@@ -1,6 +1,10 @@
 from dataclasses import dataclass
 
 
+class ConfigParseError(ValueError):
+    """Raised when the config file cannot be parsed."""
+
+
 @dataclass
 class ColumnConfig:
     name: str
