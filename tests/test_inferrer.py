@@ -198,12 +198,13 @@ def test_generate_excel_config_v2_roundtrip():
     ]
     xlsx_bytes = generate_excel_config_v2('players', columns)
 
-    wb = load_workbook(io.BytesIO(xlsx_bytes))
+    wb = load_workbook(io.BytesIO(xlsx_bytes), keep_vba=True)
     assert 'tables_config_v2' in wb.sheetnames
 
     ws = wb['tables_config_v2']
-    # Row 1 = table name
-    assert ws.cell(row=1, column=1).value == 'players'
+    # Row 1: label in A1, table name in B1
+    assert ws.cell(row=1, column=1).value == 'Наименование таблицы'
+    assert ws.cell(row=1, column=2).value == 'players'
     # Row 2 = headers
     assert ws.cell(row=2, column=2).value == 'Код колонки в БД'
     # Row 3 = first column

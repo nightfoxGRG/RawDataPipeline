@@ -3,10 +3,13 @@ from a list of inferred column descriptors.
 """
 
 from io import BytesIO
+from pathlib import Path
 
-from openpyxl import Workbook
+from openpyxl import load_workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 
+
+_TEMPLATE_PATH = Path(__file__).parent.parent / 'static' / 'TablesConfig.xlsm'
 
 _V2_HEADERS = [
     'Описание',
@@ -28,19 +31,34 @@ _TABLE_FILL = PatternFill(start_color='BDD7EE', end_color='BDD7EE', fill_type='s
 
 
 def generate_excel_config_v2(table_name: str, columns: list[dict]) -> bytes:
-    """Build and return bytes of an xlsx workbook containing a tables_config_v2 sheet.
+    """Build and return bytes of an xlsm workbook containing a tables_config_v2 sheet.
+
+    Uses TablesConfig.xlsm as a template so that VBA macros and data-validation
+    drop-downs from the Параметры sheet are preserved.
 
     Each dict in *columns* must contain at least:
       'code'    – column code (SQL identifier)
       'db_type' – PostgreSQL type
     Optional keys: 'label', 'size'.
     """
-    wb = Workbook()
-    ws = wb.active
-    ws.title = 'tables_config_v2'
+    wb = load_workbook(_TEMPLATE_PATH, keep_vba=True)
 
-    # ----- Row 1: table name -----
-    name_cell = ws.cell(row=1, column=1, value=table_name)
+    # ----- Clear existing sample data from both config sheets -----
+    for sheet_name in ('tables_config', 'tables_config_v2'):
+        if sheet_name in wb.sheetnames:
+            ws_clear = wb[sheet_name]
+            if ws_clear.max_row >= 1:
+                ws_clear.delete_rows(1, ws_clear.max_row)
+
+    ws = wb['tables_config_v2']
+
+    # ----- Row 1: "Наименование таблицы" label + actual table name -----
+    label_cell = ws.cell(row=1, column=1, value='Наименование таблицы')
+    label_cell.font = Font(bold=True)
+    label_cell.fill = _TABLE_FILL
+    label_cell.alignment = Alignment(horizontal='left', vertical='center')
+
+    name_cell = ws.cell(row=1, column=2, value=table_name)
     name_cell.font = Font(bold=True)
     name_cell.fill = _TABLE_FILL
     name_cell.alignment = Alignment(horizontal='left', vertical='center')

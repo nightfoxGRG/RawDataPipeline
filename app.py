@@ -61,10 +61,10 @@ def create_app() -> Flask:
         except (ConfigParseError, Exception) as exc:
             return render_template('inferrer.html', errors=[str(exc)])
 
-        download_name = f'{table_name}_config.xlsx'
+        download_name = f'{table_name}_config.xlsm'
         return Response(
             xlsx_bytes,
-            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            mimetype='application/vnd.ms-excel.sheet.macroEnabled.12',
             headers={'Content-Disposition': f'attachment; filename={download_name}'},
         )
 
