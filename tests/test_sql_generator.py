@@ -38,8 +38,8 @@ def test_generate_sql_appends_column_label_as_comment():
 
     sql = generate_sql(tables)
 
-    assert re.search(r'id\s+bigserial\s+not null\s+primary key\s+--\s+Идентификатор', sql)
-    assert re.search(r'full_name\s+varchar\(255\)\s+--\s+Полное имя', sql)
+    assert re.search(r'id\s+bigserial\s+not null\s+primary key,\s+--\s+Идентификатор', sql)
+    assert re.search(r'full_name\s+varchar\(255\),\s+--\s+Полное имя', sql)
     assert re.search(r'age\s+integer', sql)
     # column without label must not have a comment
     assert not re.search(r'age\s+integer\s+--', sql)

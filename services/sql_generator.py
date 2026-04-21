@@ -11,7 +11,7 @@ def generate_sql(tables: list[TableConfig]) -> str:
         name_width = max(len(p[0]) for p in parts_list)
         type_width = max(len(p[1]) for p in parts_list)
 
-        # Build base lines (without comment) so we can measure their widths
+        # Build base lines (without comma or comment) so we can measure their widths
         base_lines = []
         for name, type_str, constraints, _label in parts_list:
             line = f'    {name.ljust(name_width)}  {type_str.ljust(type_width)}'
@@ -19,18 +19,24 @@ def generate_sql(tables: list[TableConfig]) -> str:
                 line += f'  {constraints}'
             base_lines.append(line.rstrip())
 
-        # Align comments: pad every base line to the max width of labelled lines
-        labelled_widths = [len(base_lines[i]) for i, (_, _, _, lbl) in enumerate(parts_list) if lbl]
+        # Align comments: pad every base line + comma to the max width of labelled lines.
+        # Add 1 to account for the comma that precedes the comment on non-last lines.
+        labelled_widths = [len(base_lines[i]) + 1 for i, (_, _, _, lbl) in enumerate(parts_list) if lbl]
         comment_col = max(labelled_widths, default=0)
 
+        last_idx = len(parts_list) - 1
         lines = []
         for i, (_name, _type_str, _constraints, label) in enumerate(parts_list):
-            line = base_lines[i]
+            base = base_lines[i]
+            is_last = (i == last_idx)
             if label:
-                line = line.ljust(comment_col) + f'  -- {label}'
-            lines.append(line)
+                # Comma goes before the comment; last line has no trailing comma
+                prefixed = (base + ',') if not is_last else base
+                lines.append(prefixed.ljust(comment_col) + f'  -- {label}')
+            else:
+                lines.append(base if is_last else base + ',')
 
-        column_lines = ',\n'.join(lines)
+        column_lines = '\n'.join(lines)
         statements.append(f'create table {table.name} (\n{column_lines}\n);')
     return '\n\n'.join(statements)
 
