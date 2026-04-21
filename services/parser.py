@@ -212,7 +212,7 @@ def _parse_excel_table_block(rows: list[list], start_index: int) -> tuple[TableC
                 name=name,
                 db_type=db_type,
                 size=_cell(size_row, idx),
-                nullable=not _contains_any(_cell(required_row, idx), {'not null', 'required', 'обязательно'}),
+                nullable=not _contains_any(_cell(required_row, idx), {'not null', 'required', 'обязательно', 'да'}),
                 unique=_contains_any(_cell(unique_row, idx), {'unique', 'yes', 'true', '1', 'да'}),
                 primary_key='primary key' in key_value or key_value == 'pk',
                 foreign_key=reference_value if ('references' in key_value or reference_value) else None,

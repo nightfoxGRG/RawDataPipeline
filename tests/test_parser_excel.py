@@ -75,3 +75,45 @@ def test_parse_excel_references_key_without_reference_raises_error():
 
     with pytest.raises(ConfigParseError, match='ключ references'):
         parse_tables_config(payload.getvalue(), 'config.xlsx')
+
+
+def test_parse_excel_da_net_for_required_and_unique():
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'tables_config'
+
+    ws['A1'] = 'Наименование таблицы'
+    ws['B1'] = 'orders'
+    ws['A3'] = 'Код колонки в БД'
+    ws['B3'] = 'id'
+    ws['C3'] = 'code'
+    ws['D3'] = 'note'
+    ws['A4'] = 'Тип'
+    ws['B4'] = 'bigserial'
+    ws['C4'] = 'varchar'
+    ws['D4'] = 'text'
+    ws['A6'] = 'Обязательность'
+    ws['B6'] = 'да'   # required → nullable=False
+    ws['C6'] = 'нет'  # not required → nullable=True
+    # D6 empty → nullable=True (default)
+    ws['A7'] = 'Уникальность'
+    ws['B7'] = 'нет'  # not unique
+    ws['C7'] = 'да'   # unique=True
+    # D7 empty → unique=False (default)
+
+    payload = BytesIO()
+    wb.save(payload)
+
+    tables = parse_tables_config(payload.getvalue(), 'config.xlsx')
+
+    assert len(tables) == 1
+    cols = {c.name: c for c in tables[0].columns}
+
+    assert cols['id'].nullable is False   # Обязательность = "да"
+    assert cols['id'].unique is False     # Уникальность = "нет"
+
+    assert cols['code'].nullable is True  # Обязательность = "нет"
+    assert cols['code'].unique is True    # Уникальность = "да"
+
+    assert cols['note'].nullable is True  # Обязательность empty
+    assert cols['note'].unique is False   # Уникальность empty
