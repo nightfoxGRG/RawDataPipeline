@@ -8,13 +8,15 @@
   </head>
   <body>
     <main class="container">
-      <h1>Генератор SQL для PostgreSQL</h1>
+      <div class="page-header">
+        <h1>Генератор SQL для PostgreSQL</h1>
+        <a href="{{ url_for('download_template') }}" class="btn-secondary">Скачать шаблон .xlsm</a>
+      </div>
 
       <form method="post" enctype="multipart/form-data" class="card">
         <label for="config_file">Загрузите файл конфигурации</label>
         <input id="config_file" name="config_file" type="file" required>
         <button type="submit">Сгенерировать SQL</button>
-        <a href="{{ url_for('download_template') }}" class="btn-secondary">Скачать шаблон .xlsm</a>
       </form>
 
       {% if errors %}
