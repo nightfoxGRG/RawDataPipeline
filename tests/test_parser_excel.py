@@ -52,6 +52,182 @@ def test_parse_excel_tables_config_like_template():
     assert tables[0].columns[2].label == 'ID другой таблицы'
 
 
+# ---------------------------------------------------------------------------
+# v2 format tests (tables_config_v2 sheet — horizontal / tabular layout)
+# ---------------------------------------------------------------------------
+
+def _make_v2_workbook(tables: list[dict]) -> bytes:
+    """Build a workbook with a tables_config_v2 sheet.
+
+    Each entry in *tables* is a dict with:
+      'name'    – table name (goes into row 1 of the block)
+      'headers' – list of header labels for row 2 of the block
+      'rows'    – list of row-dicts {header_label: cell_value}
+    Blocks are laid out side-by-side with one blank separator column between
+    them (matching the format shown in the screenshot).
+    """
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'tables_config_v2'
+
+    col_offset = 0
+    for tbl in tables:
+        headers = tbl['headers']
+        # row 1: table name in the first column of this block
+        ws.cell(row=1, column=col_offset + 1, value=tbl['name'])
+        # row 2: headers
+        for h_idx, header in enumerate(headers):
+            ws.cell(row=2, column=col_offset + 1 + h_idx, value=header)
+        # rows 3+: data
+        for r_idx, row_data in enumerate(tbl['rows']):
+            for h_idx, header in enumerate(headers):
+                val = row_data.get(header)
+                if val is not None:
+                    ws.cell(row=3 + r_idx, column=col_offset + 1 + h_idx, value=val)
+        # blank separator column between blocks
+        col_offset += len(headers) + 1
+
+    payload = BytesIO()
+    wb.save(payload)
+    return payload.getvalue()
+
+
+V2_HEADERS = [
+    'Описание',
+    'Код колонки в БД',
+    'Тип',
+    'Размерность',
+    'Обязательность',
+    'Уникальность',
+    'Первичный ключ',
+    'Внешний ключ',
+]
+
+
+def test_parse_excel_v2_single_table():
+    content = _make_v2_workbook([
+        {
+            'name': 'users',
+            'headers': V2_HEADERS,
+            'rows': [
+                {'Описание': 'Идентификатор', 'Код колонки в БД': 'id', 'Тип': 'bigserial',
+                 'Обязательность': 'да', 'Первичный ключ': 'да'},
+                {'Описание': 'Имя', 'Код колонки в БД': 'name', 'Тип': 'varchar',
+                 'Размерность': '100', 'Обязательность': 'да'},
+            ],
+        }
+    ])
+
+    tables = parse_tables_config(content, 'config.xlsm')
+
+    assert len(tables) == 1
+    assert tables[0].name == 'users'
+    cols = {c.name: c for c in tables[0].columns}
+    assert set(cols) == {'id', 'name'}
+    assert cols['id'].primary_key is True
+    assert cols['id'].nullable is False
+    assert cols['name'].size == '100'
+    assert cols['name'].label == 'Имя'
+
+
+def test_parse_excel_v2_two_tables_side_by_side():
+    content = _make_v2_workbook([
+        {
+            'name': 'orders',
+            'headers': V2_HEADERS,
+            'rows': [
+                {'Код колонки в БД': 'id', 'Тип': 'bigserial', 'Первичный ключ': 'да'},
+                {'Код колонки в БД': 'user_id', 'Тип': 'bigint',
+                 'Внешний ключ': 'users(id)'},
+            ],
+        },
+        {
+            'name': 'products',
+            'headers': V2_HEADERS,
+            'rows': [
+                {'Код колонки в БД': 'id', 'Тип': 'bigserial'},
+                {'Код колонки в БД': 'title', 'Тип': 'varchar', 'Размерность': '255'},
+            ],
+        },
+    ])
+
+    tables = parse_tables_config(content, 'config.xlsm')
+
+    assert len(tables) == 2
+    names = {t.name for t in tables}
+    assert names == {'orders', 'products'}
+
+    orders = next(t for t in tables if t.name == 'orders')
+    assert orders.columns[1].foreign_key == 'users(id)'
+
+    products = next(t for t in tables if t.name == 'products')
+    assert products.columns[1].size == '255'
+
+
+def test_parse_excel_v2_and_v1_in_same_workbook():
+    """A workbook with both sheets: tables from each sheet are combined."""
+    wb = Workbook()
+
+    # v1 sheet
+    ws1 = wb.active
+    ws1.title = 'tables_config'
+    ws1['A1'] = 'Наименование таблицы'
+    ws1['B1'] = 'v1_table'
+    ws1['A3'] = 'Код колонки в БД'
+    ws1['B3'] = 'id'
+    ws1['A4'] = 'Тип'
+    ws1['B4'] = 'bigserial'
+
+    # v2 sheet
+    ws2 = wb.create_sheet('tables_config_v2')
+    ws2.cell(row=1, column=1, value='v2_table')
+    ws2.cell(row=2, column=1, value='Описание')
+    ws2.cell(row=2, column=2, value='Код колонки в БД')
+    ws2.cell(row=2, column=3, value='Тип')
+    ws2.cell(row=3, column=2, value='code')
+    ws2.cell(row=3, column=3, value='varchar')
+
+    payload = BytesIO()
+    wb.save(payload)
+
+    tables = parse_tables_config(payload.getvalue(), 'config.xlsm')
+
+    table_names = {t.name for t in tables}
+    assert 'v1_table' in table_names
+    assert 'v2_table' in table_names
+
+
+def test_parse_excel_v2_invalid_primary_key_raises_error():
+    content = _make_v2_workbook([
+        {
+            'name': 'test_table',
+            'headers': V2_HEADERS,
+            'rows': [
+                {'Код колонки в БД': 'id', 'Тип': 'bigserial', 'Первичный ключ': 'pk'},
+            ],
+        }
+    ])
+
+    with pytest.raises(ConfigParseError, match='Первичный ключ'):
+        parse_tables_config(content, 'config.xlsm')
+
+
+def test_parse_excel_v2_invalid_foreign_key_raises_error():
+    content = _make_v2_workbook([
+        {
+            'name': 'test_table',
+            'headers': V2_HEADERS,
+            'rows': [
+                {'Код колонки в БД': 'fk_col', 'Тип': 'bigint',
+                 'Внешний ключ': 'other.id'},  # dot notation is invalid
+            ],
+        }
+    ])
+
+    with pytest.raises(ConfigParseError, match='некорректный формат ссылки'):
+        parse_tables_config(content, 'config.xlsm')
+
+
 def test_parse_excel_invalid_primary_key_value_raises_error():
     wb = Workbook()
     ws = wb.active

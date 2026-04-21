@@ -10,7 +10,7 @@ from services.validators import _validate_reference_cell, _validate_yes_no_cell
 
 TABLE_NAME_LABELS = {'наименование таблицы', 'table_name', 'table name'}
 COLUMN_CODE_LABELS = {'код колонки в бд', 'column_code', 'column code'}
-COLUMN_NAME_LABELS = {'наименование колонки', 'column_name', 'column label', 'label'}
+COLUMN_NAME_LABELS = {'наименование колонки', 'column_name', 'column label', 'label', 'описание'}
 TYPE_LABELS = {'тип', 'type'}
 SIZE_LABELS = {'размерность', 'size', 'length'}
 REQUIRED_LABELS = {'обязательность', 'required', 'nullable'}
@@ -96,9 +96,50 @@ def _parse_structured_tables(data: dict | None) -> list[TableConfig]:
 
 def _parse_excel(content: bytes) -> list[TableConfig]:
     workbook = load_workbook(BytesIO(content), data_only=True)
-    sheet = _find_tables_sheet(workbook)
-    rows = [list(row) for row in sheet.iter_rows(values_only=True)]
 
+    v1_sheet = None
+    v2_sheet = None
+    for sheet in workbook.worksheets:
+        name = sheet.title.strip().lower()
+        if name == 'tables_config':
+            v1_sheet = sheet
+        elif name == 'tables_config_v2':
+            v2_sheet = sheet
+
+    if v1_sheet is None and v2_sheet is None:
+        if len(workbook.worksheets) == 1:
+            sheet = workbook.worksheets[0]
+            if _is_v2_format(sheet):
+                v2_sheet = sheet
+            else:
+                v1_sheet = sheet
+        else:
+            raise ConfigParseError('Лист tables_config не найден.')
+
+    tables: list[TableConfig] = []
+
+    if v1_sheet is not None:
+        rows = [list(row) for row in v1_sheet.iter_rows(values_only=True)]
+        tables.extend(_parse_excel_v1_rows(rows))
+
+    if v2_sheet is not None:
+        tables.extend(_parse_excel_v2_sheet(v2_sheet))
+
+    return tables
+
+
+def _is_v2_format(sheet) -> bool:
+    rows = list(sheet.iter_rows(min_row=2, max_row=2, values_only=True))
+    if not rows:
+        return False
+    for cell in rows[0]:
+        label = _label(cell)
+        if label in COLUMN_NAME_LABELS or label in COLUMN_CODE_LABELS:
+            return True
+    return False
+
+
+def _parse_excel_v1_rows(rows: list[list]) -> list[TableConfig]:
     tables: list[TableConfig] = []
     row_index = 0
     while row_index < len(rows):
@@ -109,6 +150,92 @@ def _parse_excel(content: bytes) -> list[TableConfig]:
                 tables.append(table)
             continue
         row_index += 1
+    return tables
+
+
+def _parse_excel_v2_sheet(sheet) -> list[TableConfig]:
+    rows = [list(row) for row in sheet.iter_rows(values_only=True)]
+    if len(rows) < 2:
+        return []
+
+    table_row = rows[0]   # row 1: table name for each block
+    header_row = rows[1]  # row 2: column-attribute headers
+
+    # Each table block starts at the column where a COLUMN_NAME_LABELS header appears
+    block_starts: list[int] = []
+    for col_idx, cell in enumerate(header_row):
+        if _label(cell) in COLUMN_NAME_LABELS:
+            block_starts.append(col_idx)
+
+    tables: list[TableConfig] = []
+    for i, start_col in enumerate(block_starts):
+        table_name = _normalize_text(
+            table_row[start_col] if start_col < len(table_row) else None
+        )
+        if not table_name:
+            continue
+
+        end_col = block_starts[i + 1] if i + 1 < len(block_starts) else len(header_row)
+
+        # Map label -> column index for this block
+        header_map: dict[str, int] = {}
+        for col_idx in range(start_col, min(end_col, len(header_row))):
+            label = _label(header_row[col_idx])
+            if label and label not in header_map:
+                header_map[label] = col_idx
+
+        code_col = _find_col(header_map, COLUMN_CODE_LABELS)
+        type_col = _find_col(header_map, TYPE_LABELS)
+        name_col = _find_col(header_map, COLUMN_NAME_LABELS)
+        size_col = _find_col(header_map, SIZE_LABELS)
+        required_col = _find_col(header_map, REQUIRED_LABELS)
+        unique_col = _find_col(header_map, UNIQUE_LABELS)
+        pk_col = _find_col(header_map, PRIMARY_KEY_LABELS)
+        fk_col = _find_col(header_map, FOREIGN_KEY_LABELS)
+        default_col = _find_col(header_map, DEFAULT_LABELS)
+
+        if code_col is None or type_col is None:
+            raise ConfigParseError(
+                f'Для таблицы {table_name} отсутствуют заголовки кодов колонок или типов.'
+            )
+
+        columns: list[ColumnConfig] = []
+        for row in rows[2:]:
+            code = _cell(row, code_col)
+            if not code:
+                continue
+
+            db_type = _cell(row, type_col)
+            if not db_type:
+                raise ConfigParseError(
+                    f'У колонки {code} таблицы {table_name} не указан тип.'
+                )
+
+            fk_value = _cell(row, fk_col) if fk_col is not None else None
+            req_val = _cell(row, required_col) if required_col is not None else None
+            uniq_val = _cell(row, unique_col) if unique_col is not None else None
+            pk_val = _cell(row, pk_col) if pk_col is not None else None
+
+            _validate_yes_no_cell(req_val, 'Обязательность', code, table_name)
+            _validate_yes_no_cell(uniq_val, 'Уникальность', code, table_name)
+            _validate_yes_no_cell(pk_val, 'Первичный ключ', code, table_name)
+            _validate_reference_cell(fk_value, code, table_name)
+
+            columns.append(
+                ColumnConfig(
+                    name=code,
+                    db_type=db_type,
+                    size=_cell(row, size_col) if size_col is not None else None,
+                    nullable=not _contains_any(req_val, {'да'}),
+                    unique=_contains_any(uniq_val, {'да'}),
+                    primary_key=_contains_any(pk_val, {'да'}),
+                    foreign_key=fk_value,
+                    default=_cell(row, default_col) if default_col is not None else None,
+                    label=_cell(row, name_col) if name_col is not None else None,
+                )
+            )
+
+        tables.append(TableConfig(name=table_name, columns=columns))
 
     return tables
 
@@ -202,6 +329,13 @@ def _find_row(row_map: dict[str, list], names: set[str]) -> list | None:
     for name in names:
         if name in row_map:
             return row_map[name]
+    return None
+
+
+def _find_col(header_map: dict[str, int], labels: set[str]) -> int | None:
+    for label in labels:
+        if label in header_map:
+            return header_map[label]
     return None
 
 
