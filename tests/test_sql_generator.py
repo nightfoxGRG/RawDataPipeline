@@ -91,3 +91,78 @@ def test_generate_sql_aligns_comments_within_table():
         assert line.startswith(f'    {expected_name_field}  '), (
             f'Expected name padded to {col_name_width} chars in: {line!r}'
         )
+
+
+def test_generate_sql_quotes_string_default():
+    tables = [
+        TableConfig(
+            name='greetings',
+            columns=[
+                ColumnConfig(name='msg', db_type='varchar', default='Hello world'),
+            ],
+        )
+    ]
+    sql = generate_sql(tables)
+    assert "default 'Hello world'" in sql
+
+
+def test_generate_sql_no_quotes_numeric_default():
+    tables = [
+        TableConfig(
+            name='scores',
+            columns=[
+                ColumnConfig(name='score', db_type='integer', default='0'),
+                ColumnConfig(name='ratio', db_type='numeric', default='1.5'),
+            ],
+        )
+    ]
+    sql = generate_sql(tables)
+    assert 'default 0' in sql
+    assert 'default 1.5' in sql
+    assert "default '0'" not in sql
+    assert "default '1.5'" not in sql
+
+
+def test_generate_sql_sql_expression_default_not_quoted():
+    tables = [
+        TableConfig(
+            name='events',
+            columns=[
+                ColumnConfig(name='created_at', db_type='timestamp', default='now()'),
+                ColumnConfig(name='updated_at', db_type='timestamptz', default='CURRENT_TIMESTAMP'),
+                ColumnConfig(name='deleted', db_type='boolean', default='false'),
+                ColumnConfig(name='note', db_type='text', default='NULL'),
+            ],
+        )
+    ]
+    sql = generate_sql(tables)
+    assert 'default now()' in sql
+    assert 'default CURRENT_TIMESTAMP' in sql
+    assert 'default false' in sql
+    assert 'default NULL' in sql
+
+
+def test_generate_sql_quotes_date_default():
+    tables = [
+        TableConfig(
+            name='records',
+            columns=[
+                ColumnConfig(name='expires', db_type='date', default='2030-01-01'),
+            ],
+        )
+    ]
+    sql = generate_sql(tables)
+    assert "default '2030-01-01'" in sql
+
+
+def test_generate_sql_escapes_single_quotes_in_default():
+    tables = [
+        TableConfig(
+            name='messages',
+            columns=[
+                ColumnConfig(name='content', db_type='text', default="it's fine"),
+            ],
+        )
+    ]
+    sql = generate_sql(tables)
+    assert "default 'it''s fine'" in sql

@@ -1,6 +1,7 @@
 import re
 
 from services.models import ConfigParseError, TableConfig
+from services.pg_types import is_boolean_type, is_numeric_type, is_sql_expression
 
 
 _IDENTIFIER_PATTERN = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
@@ -43,6 +44,9 @@ def validate_tables(tables: list[TableConfig]) -> list[str]:
             if column.foreign_key:
                 _validate_reference(column.foreign_key, table.name, column.name, errors)
 
+            if column.default is not None:
+                _validate_default_value(column.default, column.db_type, column.name, table.name, errors)
+
         duplicated_columns = sorted(name for name, count in column_name_map.items() if count > 1)
         for duplicated_column in duplicated_columns:
             errors.append(f'В таблице {table.name} найден дубликат колонки: {duplicated_column}.')
@@ -83,6 +87,29 @@ def _validate_reference(reference: str, table_name: str, column_name: str, error
 
     _validate_identifier('Таблица (FK)', ref_table, errors)
     _validate_identifier('Колонка (FK)', ref_column, errors)
+
+
+def _validate_default_value(default: str, db_type: str, column: str, table: str, errors: list[str]) -> None:
+    """Validate that *default* is a legal literal for the given PostgreSQL *db_type*."""
+    if is_sql_expression(default):
+        return  # NULL, TRUE/FALSE, function calls and SQL constants are always valid
+
+    if is_boolean_type(db_type):
+        errors.append(
+            f'Колонка {column} таблицы {table}: значение по умолчанию "{default}" '
+            f'некорректно для типа {db_type}. '
+            'Допустимы только SQL-константы: true, false, null.'
+        )
+        return
+
+    if is_numeric_type(db_type):
+        try:
+            float(default)
+        except ValueError:
+            errors.append(
+                f'Колонка {column} таблицы {table}: значение по умолчанию "{default}" '
+                f'не является допустимым числом для типа {db_type}.'
+            )
 
 
 def _validate_yes_no_cell(value: str | None, field: str, column: str, table: str) -> None:

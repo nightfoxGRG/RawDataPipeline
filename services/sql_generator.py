@@ -1,4 +1,5 @@
 from services.models import ColumnConfig, TableConfig
+from services.pg_types import is_boolean_type, is_numeric_type, is_quoted_type, is_sql_expression
 
 
 _SIZED_TYPES = {'varchar', 'character varying', 'char', 'character', 'numeric', 'decimal'}
@@ -59,14 +60,45 @@ def _column_parts(column: ColumnConfig) -> tuple[str, str, str, str]:
         constraints.append('not null')
     if column.unique:
         constraints.append('unique')
-    if column.default:
-        constraints.append(f'default {column.default}')
+    if column.default is not None:
+        constraints.append(f'default {_format_default(column.default, column.db_type)}')
     if column.primary_key:
         constraints.append('primary key')
     if column.foreign_key:
         constraints.append(f'references {column.foreign_key}')
 
     return column.name, type_str, ' '.join(constraints), column.label or ''
+
+
+def _format_default(value: str, db_type: str) -> str:
+    """Return a properly-formatted SQL DEFAULT expression for *value* and *db_type*.
+
+    - SQL keyword constants (NULL, TRUE, FALSE, CURRENT_TIMESTAMP, …) and
+      function calls (e.g. now()) are returned verbatim.
+    - Numeric types: returned verbatim (validation ensures it is a valid number).
+    - Boolean types: returned verbatim (TRUE/FALSE are already handled as SQL
+      constants; invalid values pass through and are reported by the validator).
+    - String and date/time types: wrapped in single quotes with internal
+      single-quotes escaped as ''.
+    - Unknown types: quoted if not purely numeric, otherwise verbatim.
+    """
+    if is_sql_expression(value):
+        return value
+
+    if is_numeric_type(db_type):
+        return value
+
+    if is_quoted_type(db_type):
+        escaped = value.replace("'", "''")
+        return f"'{escaped}'"
+
+    # Unknown / unsupported type: quote unless the value is clearly numeric.
+    try:
+        float(value)
+        return value
+    except ValueError:
+        escaped = value.replace("'", "''")
+        return f"'{escaped}'"
 
 
 def _format_type(db_type: str, size: str | None) -> str:
