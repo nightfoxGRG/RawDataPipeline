@@ -46,7 +46,7 @@ def _parse_structured_tables(data: dict | None) -> list[TableConfig]:
     tables: list[TableConfig] = []
     if isinstance(tables_config, dict):
         iterable = [
-            {'name': table_name, 'columns': columns}
+            {'table_name': table_name, 'columns': columns}
             for table_name, columns in tables_config.items()
         ]
     elif isinstance(tables_config, list):
@@ -57,12 +57,12 @@ def _parse_structured_tables(data: dict | None) -> list[TableConfig]:
     for table_item in iterable:
         if not isinstance(table_item, dict):
             raise ConfigParseError('Каждая таблица в tables_config должна быть объектом.')
-        table_name = _normalize_text(table_item.get('name'))
+        table_name = _normalize_text(table_item.get('table_name'))
         if not table_name:
             raise ConfigParseError('У таблицы отсутствует имя.')
         columns_raw = table_item.get('columns', [])
         if isinstance(columns_raw, dict):
-            columns_raw = [{'name': name, **details} for name, details in columns_raw.items()]
+            columns_raw = [{'column_code': name, **details} for name, details in columns_raw.items()]
         if not isinstance(columns_raw, list):
             raise ConfigParseError(f'Колонки таблицы {table_name} должны быть списком или словарем.')
 
@@ -70,10 +70,10 @@ def _parse_structured_tables(data: dict | None) -> list[TableConfig]:
         for column_item in columns_raw:
             if not isinstance(column_item, dict):
                 raise ConfigParseError(f'Некорректное описание колонки в таблице {table_name}.')
-            column_name = _normalize_text(column_item.get('name'))
+            column_name = _normalize_text(column_item.get('column_code'))
             db_type = _normalize_text(column_item.get('type'))
             if not column_name or not db_type:
-                raise ConfigParseError(f'Колонка в таблице {table_name} должна содержать name и type.')
+                raise ConfigParseError(f'Колонка в таблице {table_name} должна содержать column_code и type.')
 
             columns.append(
                 ColumnConfig(
@@ -85,7 +85,7 @@ def _parse_structured_tables(data: dict | None) -> list[TableConfig]:
                     primary_key=_to_bool(column_item.get('primary_key', False), default=False),
                     foreign_key=_normalize_text(column_item.get('foreign_key')),
                     default=_normalize_text(column_item.get('default')),
-                    label=_normalize_text(column_item.get('label')),
+                    label=_normalize_text(column_item.get('column_name')),
                 )
             )
 
