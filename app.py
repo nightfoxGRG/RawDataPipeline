@@ -75,7 +75,7 @@ def create_app() -> Flask:
             static_dir,
             'TablesConfig.xlsm',
             as_attachment=True,
-            download_name='template.xlsm',
+            download_name='TablesConfig.xlsm',
         )
 
     @app.post('/download')
