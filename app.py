@@ -73,7 +73,7 @@ def create_app() -> Flask:
         static_dir = Path(app.root_path) / 'static'
         return send_from_directory(
             static_dir,
-            'template.xlsm',
+            'TablesConfig.xlsm',
             as_attachment=True,
             download_name='template.xlsm',
         )
