@@ -228,6 +228,31 @@ def test_parse_excel_v2_invalid_foreign_key_raises_error():
         parse_tables_config(content, 'config.xlsm')
 
 
+def test_parse_excel_v2_table_name_label_in_row1():
+    """Row 1 has 'Наименование таблицы' at start_col; actual name is at start_col+1."""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'tables_config_v2'
+
+    # Block 1: label at A1, actual table name at B1
+    ws.cell(row=1, column=1, value='Наименование таблицы')
+    ws.cell(row=1, column=2, value='users')
+    ws.cell(row=2, column=1, value='Описание')
+    ws.cell(row=2, column=2, value='Код колонки в БД')
+    ws.cell(row=2, column=3, value='Тип')
+    ws.cell(row=3, column=2, value='id')
+    ws.cell(row=3, column=3, value='bigserial')
+
+    payload = BytesIO()
+    wb.save(payload)
+
+    tables = parse_tables_config(payload.getvalue(), 'config.xlsm')
+
+    assert len(tables) == 1
+    assert tables[0].name == 'users'
+    assert tables[0].columns[0].name == 'id'
+
+
 def test_parse_excel_invalid_primary_key_value_raises_error():
     wb = Workbook()
     ws = wb.active

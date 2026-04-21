@@ -169,9 +169,12 @@ def _parse_excel_v2_sheet(sheet) -> list[TableConfig]:
 
     tables: list[TableConfig] = []
     for i, start_col in enumerate(block_starts):
-        table_name = _normalize_text(
-            table_row[start_col] if start_col < len(table_row) else None
-        )
+        raw_name_cell = table_row[start_col] if start_col < len(table_row) else None
+        # If row-1 cell at start_col is the "Наименование таблицы" label rather than
+        # the actual table name, the real name is in the adjacent cell to the right.
+        if _label(raw_name_cell) in TABLE_NAME_LABELS:
+            raw_name_cell = table_row[start_col + 1] if start_col + 1 < len(table_row) else None
+        table_name = _normalize_text(raw_name_cell)
         if not table_name:
             continue
 
