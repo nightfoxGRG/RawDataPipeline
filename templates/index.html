@@ -8,6 +8,11 @@
   </head>
   <body>
     <main class="container">
+      <nav class="tabs">
+        <a href="{{ url_for('index') }}" class="tab-link tab-link--active">Генератор SQL</a>
+        <a href="{{ url_for('inferrer') }}" class="tab-link">Генератор конфига</a>
+      </nav>
+
       <div class="page-header">
         <h1>Генератор SQL для PostgreSQL</h1>
         <a href="{{ url_for('download_template') }}" class="btn-secondary">Скачать шаблон .xlsm</a>

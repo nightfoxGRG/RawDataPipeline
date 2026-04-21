@@ -26,12 +26,46 @@ body {
   margin: 0;
 }
 
-
+.card {
   background: #fff;
   border-radius: 8px;
   padding: 16px;
   margin-top: 16px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-top: 16px;
+  border-bottom: 2px solid #d0d7e2;
+  padding-bottom: 0;
+}
+
+.tab-link {
+  display: inline-block;
+  padding: 8px 18px;
+  border-radius: 6px 6px 0 0;
+  text-decoration: none;
+  color: #1a73e8;
+  background: #e8f0fe;
+  font-size: inherit;
+  border: 1px solid #d0d7e2;
+  border-bottom: none;
+  margin-bottom: -2px;
+}
+
+.tab-link--active {
+  background: #fff;
+  color: #202124;
+  font-weight: bold;
+  border-color: #d0d7e2;
+  z-index: 1;
+}
+
+.hint {
+  margin-top: 12px;
+  color: #5f6368;
 }
 
 .error {
