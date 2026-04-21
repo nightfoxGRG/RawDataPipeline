@@ -13,7 +13,7 @@ def test_parse_excel_tables_config_like_template():
 
     ws['A1'] = 'Наименование таблицы'
     ws['B1'] = 'test_table'
-    ws['A2'] = 'Наименование колонки'
+    ws['A2'] = 'Описание'
     ws['B2'] = 'Идентификатор'
     ws['C2'] = 'Код'
     ws['D2'] = 'ID другой таблицы'
