@@ -24,25 +24,25 @@ flask --app app run
 {
   "tables_config": [
     {
-      "name": "users",
+      "table_name": "users",
       "columns": [
         {
-          "name": "id",
+          "column_code": "id",
           "type": "bigserial",
           "nullable": false,
           "unique": false,
           "primary_key": true
         },
         {
-          "name": "email",
+          "column_code": "email",
           "type": "varchar",
           "size": "255",
           "nullable": false,
           "unique": true,
-          "label": "Электронная почта"
+          "column_name": "Электронная почта"
         },
         {
-          "name": "role_id",
+          "column_code": "role_id",
           "type": "bigint",
           "nullable": true,
           "foreign_key": "roles(id)"
@@ -55,9 +55,13 @@ flask --app app run
 
 Поле `tables_config` может быть либо **списком** объектов (как выше), либо **словарём** `{ "table_name": { columns } }`.
 
+| Поле таблицы  | Тип       | Описание                                           |
+|---------------|-----------|----------------------------------------------------|
+| `table_name`  | string    | Наименование таблицы (обязательное)                |
+
 | Поле колонки  | Тип       | Описание                                           |
 |---------------|-----------|----------------------------------------------------|
-| `name`        | string    | Код колонки в БД (обязательное)                    |
+| `column_code` | string    | Код колонки в БД (обязательное)                    |
 | `type`        | string    | Тип данных PostgreSQL (обязательное)               |
 | `size`        | string    | Размерность, например `"255"`                      |
 | `nullable`    | bool      | `true` — допускает NULL (по умолчанию `true`)      |
@@ -65,7 +69,7 @@ flask --app app run
 | `primary_key` | bool      | `true` — первичный ключ (по умолчанию `false`)     |
 | `foreign_key` | string    | Ссылка в формате `table(column)`                   |
 | `default`     | string    | Значение по умолчанию                              |
-| `label`       | string    | Отображаемое наименование колонки                  |
+| `column_name` | string    | Отображаемое наименование колонки                  |
 
 ## Что проверяется
 
