@@ -117,3 +117,45 @@ def test_parse_excel_da_net_for_required_and_unique():
 
     assert cols['note'].nullable is True  # Обязательность empty
     assert cols['note'].unique is False   # Уникальность empty
+
+
+def test_parse_excel_invalid_required_value_raises_error():
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'tables_config'
+
+    ws['A1'] = 'Наименование таблицы'
+    ws['B1'] = 'test_table'
+    ws['A3'] = 'Код колонки в БД'
+    ws['B3'] = 'id'
+    ws['A4'] = 'Тип'
+    ws['B4'] = 'bigserial'
+    ws['A6'] = 'Обязательность'
+    ws['B6'] = 'not null'  # invalid — must be "да", "нет", or empty
+
+    payload = BytesIO()
+    wb.save(payload)
+
+    with pytest.raises(ConfigParseError, match='Обязательность'):
+        parse_tables_config(payload.getvalue(), 'config.xlsx')
+
+
+def test_parse_excel_invalid_unique_value_raises_error():
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'tables_config'
+
+    ws['A1'] = 'Наименование таблицы'
+    ws['B1'] = 'test_table'
+    ws['A3'] = 'Код колонки в БД'
+    ws['B3'] = 'id'
+    ws['A4'] = 'Тип'
+    ws['B4'] = 'bigserial'
+    ws['A7'] = 'Уникальность'
+    ws['B7'] = 'unique'  # invalid — must be "да", "нет", or empty
+
+    payload = BytesIO()
+    wb.save(payload)
+
+    with pytest.raises(ConfigParseError, match='Уникальность'):
+        parse_tables_config(payload.getvalue(), 'config.xlsx')

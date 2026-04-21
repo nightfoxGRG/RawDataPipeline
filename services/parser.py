@@ -207,6 +207,9 @@ def _parse_excel_table_block(rows: list[list], start_index: int) -> tuple[TableC
                 'но не указана ссылка на таблицу.'
             )
 
+        _validate_yes_no_cell(_cell(required_row, idx), 'Обязательность', name, table_name)
+        _validate_yes_no_cell(_cell(unique_row, idx), 'Уникальность', name, table_name)
+
         columns.append(
             ColumnConfig(
                 name=name,
@@ -222,6 +225,16 @@ def _parse_excel_table_block(rows: list[list], start_index: int) -> tuple[TableC
         )
 
     return TableConfig(name=table_name, columns=columns), end_index
+
+
+def _validate_yes_no_cell(value: str | None, field: str, column: str, table: str) -> None:
+    if value is None:
+        return
+    if value.lower() not in {'да', 'нет'}:
+        raise ConfigParseError(
+            f'Колонка {column} таблицы {table}: поле "{field}" содержит недопустимое значение '
+            f'"{value}". Допустимы только "да", "нет" или пустое значение.'
+        )
 
 
 def _find_row(row_map: dict[str, list], names: set[str]) -> list | None:
