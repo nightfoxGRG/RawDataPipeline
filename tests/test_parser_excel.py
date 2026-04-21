@@ -31,10 +31,9 @@ def test_parse_excel_tables_config_like_template():
     ws['B6'] = 'да'
     ws['C6'] = 'да'
     ws['D6'] = 'да'
-    ws['A8'] = 'Ключ'
-    ws['B8'] = 'primary key'
-    ws['D8'] = 'references'
-    ws['A9'] = 'Ссылка на таблицу'
+    ws['A8'] = 'Первичный ключ'
+    ws['B8'] = 'да'
+    ws['A9'] = 'Внешний ключ'
     ws['D9'] = 'another_table(id)'
 
     payload = BytesIO()
@@ -53,7 +52,7 @@ def test_parse_excel_tables_config_like_template():
     assert tables[0].columns[2].label == 'ID другой таблицы'
 
 
-def test_parse_excel_references_key_without_reference_raises_error():
+def test_parse_excel_invalid_primary_key_value_raises_error():
     wb = Workbook()
     ws = wb.active
     ws.title = 'tables_config'
@@ -62,18 +61,17 @@ def test_parse_excel_references_key_without_reference_raises_error():
     ws['B1'] = 'test_table'
     ws['A3'] = 'Код колонки в БД'
     ws['B3'] = 'id'
-    ws['C3'] = 'fk_col'
+    ws['C3'] = 'code'
     ws['A4'] = 'Тип'
     ws['B4'] = 'bigserial'
-    ws['C4'] = 'bigint'
-    ws['A8'] = 'Ключ'
-    ws['C8'] = 'references'
-    # no value in 'Ссылка на таблицу' row for fk_col
+    ws['C4'] = 'varchar'
+    ws['A8'] = 'Первичный ключ'
+    ws['B8'] = 'pk'  # invalid — must be "да", "нет", or empty
 
     payload = BytesIO()
     wb.save(payload)
 
-    with pytest.raises(ConfigParseError, match='ключ references'):
+    with pytest.raises(ConfigParseError, match='Первичный ключ'):
         parse_tables_config(payload.getvalue(), 'config.xlsx')
 
 
@@ -174,9 +172,8 @@ def test_parse_excel_invalid_reference_format_raises_error():
     ws['A4'] = 'Тип'
     ws['B4'] = 'bigserial'
     ws['C4'] = 'bigint'
-    ws['A8'] = 'Ключ'
-    ws['C8'] = 'references'
-    ws['A9'] = 'Ссылка на таблицу'
+    ws['A8'] = 'Первичный ключ'
+    ws['A9'] = 'Внешний ключ'
     ws['C9'] = 'other_table.id'  # invalid — must be other_table(id)
 
     payload = BytesIO()

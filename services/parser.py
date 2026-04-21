@@ -18,8 +18,8 @@ TYPE_LABELS = {'тип', 'type'}
 SIZE_LABELS = {'размерность', 'size', 'length'}
 REQUIRED_LABELS = {'обязательность', 'required', 'nullable'}
 UNIQUE_LABELS = {'уникальность', 'unique'}
-KEY_LABELS = {'ключ', 'key'}
-REFERENCE_LABELS = {'ссылка на таблицу', 'reference', 'references'}
+PRIMARY_KEY_LABELS = {'первичный ключ', 'primary key', 'primary_key'}
+FOREIGN_KEY_LABELS = {'внешний ключ', 'foreign key', 'foreign_key'}
 DEFAULT_LABELS = {'default', 'значение по умолчанию'}
 
 
@@ -167,8 +167,8 @@ def _parse_excel_table_block(rows: list[list], start_index: int) -> tuple[TableC
     size_row = _find_row(row_map, SIZE_LABELS)
     required_row = _find_row(row_map, REQUIRED_LABELS)
     unique_row = _find_row(row_map, UNIQUE_LABELS)
-    key_row = _find_row(row_map, KEY_LABELS)
-    reference_row = _find_row(row_map, REFERENCE_LABELS)
+    primary_key_row = _find_row(row_map, PRIMARY_KEY_LABELS)
+    foreign_key_row = _find_row(row_map, FOREIGN_KEY_LABELS)
     default_row = _find_row(row_map, DEFAULT_LABELS)
 
     if not code_row or not type_row:
@@ -181,8 +181,8 @@ def _parse_excel_table_block(rows: list[list], start_index: int) -> tuple[TableC
         len(size_row or []),
         len(required_row or []),
         len(unique_row or []),
-        len(key_row or []),
-        len(reference_row or []),
+        len(primary_key_row or []),
+        len(foreign_key_row or []),
         len(default_row or []),
     )
 
@@ -195,18 +195,12 @@ def _parse_excel_table_block(rows: list[list], start_index: int) -> tuple[TableC
         if not db_type:
             raise ConfigParseError(f'У колонки {name} таблицы {table_name} не указан тип.')
 
-        key_value = (_cell(key_row, idx) or '').lower()
-        reference_value = _cell(reference_row, idx)
-
-        if ('references' in key_value or key_value in {'fk', 'foreign key'}) and not reference_value:
-            raise ConfigParseError(
-                f'Колонка {name} таблицы {table_name}: задан ключ references, '
-                'но не указана ссылка на таблицу.'
-            )
+        foreign_key_value = _cell(foreign_key_row, idx)
 
         _validate_yes_no_cell(_cell(required_row, idx), 'Обязательность', name, table_name)
         _validate_yes_no_cell(_cell(unique_row, idx), 'Уникальность', name, table_name)
-        _validate_reference_cell(reference_value, name, table_name)
+        _validate_yes_no_cell(_cell(primary_key_row, idx), 'Первичный ключ', name, table_name)
+        _validate_reference_cell(foreign_key_value, name, table_name)
 
         columns.append(
             ColumnConfig(
@@ -215,8 +209,8 @@ def _parse_excel_table_block(rows: list[list], start_index: int) -> tuple[TableC
                 size=_cell(size_row, idx),
                 nullable=not _contains_any(_cell(required_row, idx), {'да'}),
                 unique=_contains_any(_cell(unique_row, idx), {'да'}),
-                primary_key='primary key' in key_value or key_value == 'pk',
-                foreign_key=reference_value if ('references' in key_value or reference_value) else None,
+                primary_key=_contains_any(_cell(primary_key_row, idx), {'да'}),
+                foreign_key=foreign_key_value,
                 default=_cell(default_row, idx),
                 label=_cell(name_row, idx),
             )
