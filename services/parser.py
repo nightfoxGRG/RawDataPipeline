@@ -1,10 +1,7 @@
-import configparser
 import json
 from io import BytesIO
 from pathlib import Path
 
-import toml
-import yaml
 from openpyxl import load_workbook
 
 from services.models import ColumnConfig, ConfigParseError, TableConfig
@@ -27,17 +24,8 @@ def parse_tables_config(content: bytes, filename: str) -> list[TableConfig]:
     extension = Path(filename).suffix.lower()
     if extension in {'.xlsx', '.xlsm'}:
         tables = _parse_excel(content)
-    elif extension in {'.yaml', '.yml'}:
-        data = yaml.safe_load(content.decode('utf-8'))
-        tables = _parse_structured_tables(data)
     elif extension == '.json':
         data = json.loads(content.decode('utf-8'))
-        tables = _parse_structured_tables(data)
-    elif extension == '.toml':
-        data = toml.loads(content.decode('utf-8'))
-        tables = _parse_structured_tables(data)
-    elif extension == '.ini':
-        data = _parse_ini(content)
         tables = _parse_structured_tables(data)
     else:
         raise ConfigParseError('Неподдерживаемый формат файла.')
@@ -45,15 +33,6 @@ def parse_tables_config(content: bytes, filename: str) -> list[TableConfig]:
     if not tables:
         raise ConfigParseError('Секция tables_config не найдена или не содержит таблиц.')
     return tables
-
-
-def _parse_ini(content: bytes) -> dict:
-    parser = configparser.ConfigParser()
-    parser.read_string(content.decode('utf-8'))
-    result: dict[str, dict] = {}
-    for section in parser.sections():
-        result[section] = dict(parser.items(section))
-    return result
 
 
 def _parse_structured_tables(data: dict | None) -> list[TableConfig]:

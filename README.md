@@ -15,11 +15,57 @@ flask --app app run
 
 ## Поддерживаемые форматы
 
-- `.xlsx` (лист `tables_config`, либо единственный лист)
-- `.yaml` / `.yml`
+- `.xlsx` / `.xlsm` (лист `tables_config`, либо единственный лист)
 - `.json`
-- `.toml`
-- `.ini`
+
+## Структура JSON
+
+```json
+{
+  "tables_config": [
+    {
+      "name": "users",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigserial",
+          "nullable": false,
+          "unique": false,
+          "primary_key": true
+        },
+        {
+          "name": "email",
+          "type": "varchar",
+          "size": "255",
+          "nullable": false,
+          "unique": true,
+          "label": "Электронная почта"
+        },
+        {
+          "name": "role_id",
+          "type": "bigint",
+          "nullable": true,
+          "foreign_key": "roles(id)"
+        }
+      ]
+    }
+  ]
+}
+```
+
+Поле `tables_config` может быть либо **списком** объектов (как выше), либо **словарём** `{ "table_name": { columns } }`.
+
+| Поле колонки  | Тип       | Описание                                           |
+|---------------|-----------|----------------------------------------------------|
+| `name`        | string    | Код колонки в БД (обязательное)                    |
+| `type`        | string    | Тип данных PostgreSQL (обязательное)               |
+| `size`        | string    | Размерность, например `"255"`                      |
+| `nullable`    | bool      | `true` — допускает NULL (по умолчанию `true`)      |
+| `unique`      | bool      | `true` — уникальное значение (по умолчанию `false`)|
+| `primary_key` | bool      | `true` — первичный ключ (по умолчанию `false`)     |
+| `foreign_key` | string    | Ссылка в формате `table(column)`                   |
+| `default`     | string    | Значение по умолчанию                              |
+| `label`       | string    | Отображаемое наименование колонки                  |
 
 ## Что проверяется
 

@@ -5,7 +5,7 @@ class UploadError(ValueError):
     """Raised when uploaded file is invalid."""
 
 
-ALLOWED_EXTENSIONS = {'.xlsx', '.xlsm', '.yaml', '.yml', '.json', '.toml', '.ini'}
+ALLOWED_EXTENSIONS = {'.xlsx', '.xlsm', '.json'}
 
 
 def read_uploaded_file(file_storage: FileStorage | None) -> tuple[bytes, str]:
