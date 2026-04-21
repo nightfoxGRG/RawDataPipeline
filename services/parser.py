@@ -8,16 +8,16 @@ from services.models import ColumnConfig, ConfigParseError, TableConfig
 from services.validators import _validate_reference_cell, _validate_yes_no_cell
 
 
-TABLE_NAME_LABELS = {'наименование таблицы', 'table_name', 'table name'}
-COLUMN_CODE_LABELS = {'код колонки в бд', 'column_code', 'column code'}
-COLUMN_NAME_LABELS = {'наименование колонки', 'column_name', 'column label', 'label', 'описание'}
+TABLE_NAME_LABELS = {'наименование таблицы', 'table_name'}
+COLUMN_CODE_LABELS = {'код колонки в бд', 'column_code'}
+COLUMN_NAME_LABELS = {'описание', 'column_name'}
 TYPE_LABELS = {'тип', 'type'}
-SIZE_LABELS = {'размерность', 'size', 'length'}
-REQUIRED_LABELS = {'обязательность', 'required', 'nullable'}
+SIZE_LABELS = {'размерность', 'size'}
+REQUIRED_LABELS = {'обязательность', 'nullable'}
 UNIQUE_LABELS = {'уникальность', 'unique'}
-PRIMARY_KEY_LABELS = {'первичный ключ', 'primary key', 'primary_key'}
-FOREIGN_KEY_LABELS = {'внешний ключ', 'foreign key', 'foreign_key'}
-DEFAULT_LABELS = {'default', 'значение по умолчанию'}
+PRIMARY_KEY_LABELS = {'первичный ключ', 'primary_key'}
+FOREIGN_KEY_LABELS = {'внешний ключ', 'foreign_key'}
+DEFAULT_LABELS = {'значение по умолчанию', 'default'}
 
 
 def parse_tables_config(content: bytes, filename: str) -> list[TableConfig]:
