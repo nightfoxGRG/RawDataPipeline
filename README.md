@@ -8,10 +8,10 @@
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-flask --app app run
+flask --app app run --port 8080
 ```
 
-Откройте `http://127.0.0.1:5000`, загрузите конфигурационный файл и получите SQL + скачивание `tables.sql`.
+Откройте `http://127.0.0.1:8080`, загрузите конфигурационный файл и получите SQL + скачивание `tables.sql`.
 
 ## Поддерживаемые форматы
 
