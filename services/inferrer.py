@@ -6,16 +6,29 @@ The first row of the input file is expected to contain column headers.
 
 import csv
 import re
+import tomllib
 from io import BytesIO, StringIO
 from pathlib import Path
 
+import requests
+
 from openpyxl import load_workbook
 
-try:
-    from deep_translator import GoogleTranslator as _GoogleTranslator
-    _TRANSLATOR_AVAILABLE = True
-except ImportError:
-    _TRANSLATOR_AVAILABLE = False
+# ---------------------------------------------------------------------------
+# Load translation service URL from config.toml (project root)
+# ---------------------------------------------------------------------------
+
+_CONFIG_PATH = Path(__file__).parent.parent / 'config.toml'
+
+def _load_libretranslate_url() -> str:
+    try:
+        with open(_CONFIG_PATH, 'rb') as _f:
+            _cfg = tomllib.load(_f)
+        return _cfg.get('translation', {}).get('libretranslate_url', 'http://127.0.0.1:50001')
+    except Exception:
+        return 'http://127.0.0.1:50001'
+
+LIBRETRANSLATE_URL: str = _load_libretranslate_url()
 
 
 # Patterns for date / datetime detection
@@ -209,17 +222,21 @@ def _infer_db_type(values: list) -> tuple[str, str | None]:
 # ---------------------------------------------------------------------------
 
 def _translate_to_english(name: str) -> str:
-    """Return *name* translated to English if it contains Cyrillic characters.
+    """Return *name* translated to English via LibreTranslate if it contains Cyrillic.
 
-    Non-Cyrillic text is returned as-is.  If the translation library is not
-    installed or the API call fails, the original string is returned unchanged.
+    Non-Cyrillic text is returned as-is.  If the service is unreachable or
+    returns an error, the original string is returned unchanged.
     """
-    if not _TRANSLATOR_AVAILABLE:
-        return name
     if not re.search(r'[а-яёА-ЯЁ]', name):
         return name
     try:
-        return _GoogleTranslator(source='ru', target='en').translate(name) or name
+        response = requests.post(
+            f'{LIBRETRANSLATE_URL}/translate',
+            json={'q': name, 'source': 'ru', 'target': 'en', 'format': 'text'},
+            timeout=5,
+        )
+        response.raise_for_status()
+        return response.json().get('translatedText') or name
     except Exception:
         return name
 

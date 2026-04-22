@@ -77,11 +77,10 @@ def test_sanitize_code_empty():
 
 
 def test_sanitize_code_cyrillic():
-    translator_instance = MagicMock()
-    translator_instance.translate.return_value = 'User name'
-    with patch('services.inferrer._GoogleTranslator', return_value=translator_instance):
-        import services.inferrer as _inferrer
-        _inferrer._TRANSLATOR_AVAILABLE = True
+    mock_response = MagicMock()
+    mock_response.json.return_value = {'translatedText': 'User name'}
+    mock_response.raise_for_status.return_value = None
+    with patch('services.inferrer.requests.post', return_value=mock_response):
         code = _sanitize_code('Имя пользователя')
     # Must be non-empty and contain only lowercase ASCII-identifier chars
     assert code and code != 'col'
@@ -89,11 +88,10 @@ def test_sanitize_code_cyrillic():
 
 
 def test_sanitize_code_cyrillic_single_word():
-    translator_instance = MagicMock()
-    translator_instance.translate.return_value = 'Identifier'
-    with patch('services.inferrer._GoogleTranslator', return_value=translator_instance):
-        import services.inferrer as _inferrer
-        _inferrer._TRANSLATOR_AVAILABLE = True
+    mock_response = MagicMock()
+    mock_response.json.return_value = {'translatedText': 'Identifier'}
+    mock_response.raise_for_status.return_value = None
+    with patch('services.inferrer.requests.post', return_value=mock_response):
         code = _sanitize_code('Идентификатор')
     assert code == 'identifier'
 
