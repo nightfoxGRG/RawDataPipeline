@@ -9,8 +9,8 @@
   <body>
     <main class="container">
       <nav class="tabs">
-        <a href="{{ url_for('index') }}" class="tab-link tab-link--active">Генератор SQL</a>
         <a href="{{ url_for('inferrer') }}" class="tab-link">Генератор конфига</a>
+        <a href="{{ url_for('sql') }}" class="tab-link tab-link--active">Генератор SQL</a>
       </nav>
 
       <div class="page-header">
@@ -18,7 +18,7 @@
         <a href="{{ url_for('download_template') }}" class="btn-secondary">Скачать шаблон .xlsm</a>
       </div>
 
-      <form method="post" enctype="multipart/form-data" class="card">
+      <form method="post" action="{{ url_for('sql') }}" enctype="multipart/form-data" class="card">
         <label for="config_file">Загрузите файл конфигурации</label>
         <input id="config_file" name="config_file" type="file" required>
         <button type="submit">Сгенерировать SQL</button>

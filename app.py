@@ -15,8 +15,12 @@ from services.validators import validate_tables
 def create_app() -> Flask:
     app = Flask(__name__)
 
-    @app.route('/', methods=['GET', 'POST'])
+    @app.route('/', methods=['GET'])
     def index():
+        return render_template('inferrer.html', errors=[])
+
+    @app.route('/sql', methods=['GET', 'POST'])
+    def sql():
         sql_output = ''
         errors = []
 
