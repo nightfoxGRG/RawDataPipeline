@@ -127,6 +127,7 @@ def generate_excel_config_v2(table_name: str, columns: list[dict]) -> bytes:
     template_bytes = _TEMPLATE_PATH.read_bytes()
 
     ws = wb['tables_config_v2']
+    wb.active = ws
 
     # ----- Write table name into B1 (A1 already holds "Наименование таблицы") -----
     ws.cell(row=1, column=2).value = table_name
