@@ -1,0 +1,16 @@
+services:
+  libretranslate:
+    image: libretranslate/libretranslate:latest   # ← готовый образ, НЕ сборка
+    container_name: libretranslate-offline
+    restart: unless-stopped
+    ports:
+      - "50001:5000"
+    volumes:
+      # Укажите ПУТЬ К РАСПАКОВАННЫМ моделям на хосте
+      - /Volumes/External_SSD/work/projects/LibreTranslate_modules:/home/libretranslate/.local/share/argos-translate/packages:rw
+    command: --load-only en,ru    # Ограничение при запуске
+    environment:
+      - LT_UPDATE_MODELS=false    # Запрет обновлений
+    user: "0:0"  # Запуск от root
+    security_opt:
+      - label:disable  # Для некоторых систем
