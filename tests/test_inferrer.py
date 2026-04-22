@@ -1,6 +1,7 @@
 import csv
 import io
 import re
+from unittest.mock import patch, MagicMock
 
 import pytest
 from openpyxl import Workbook
@@ -76,15 +77,25 @@ def test_sanitize_code_empty():
 
 
 def test_sanitize_code_cyrillic():
-    code = _sanitize_code('Имя пользователя')
+    translator_instance = MagicMock()
+    translator_instance.translate.return_value = 'User name'
+    with patch('services.inferrer._GoogleTranslator', return_value=translator_instance):
+        import services.inferrer as _inferrer
+        _inferrer._TRANSLATOR_AVAILABLE = True
+        code = _sanitize_code('Имя пользователя')
     # Must be non-empty and contain only lowercase ASCII-identifier chars
     assert code and code != 'col'
     assert re.match(r'^[a-z][a-z0-9_]*$', code), f'Not a valid identifier: {code!r}'
 
 
 def test_sanitize_code_cyrillic_single_word():
-    code = _sanitize_code('Идентификатор')
-    assert code == 'identifikator'
+    translator_instance = MagicMock()
+    translator_instance.translate.return_value = 'Identifier'
+    with patch('services.inferrer._GoogleTranslator', return_value=translator_instance):
+        import services.inferrer as _inferrer
+        _inferrer._TRANSLATOR_AVAILABLE = True
+        code = _sanitize_code('Идентификатор')
+    assert code == 'identifier'
 
 
 # ---------------------------------------------------------------------------

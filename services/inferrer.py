@@ -12,11 +12,10 @@ from pathlib import Path
 from openpyxl import load_workbook
 
 try:
-    from transliterate import translit as _translit
-    from transliterate.exceptions import LanguageDetectionError as _LanguageDetectionError
-    _TRANSLITERATE_AVAILABLE = True
+    from deep_translator import GoogleTranslator as _GoogleTranslator
+    _TRANSLATOR_AVAILABLE = True
 except ImportError:
-    _TRANSLITERATE_AVAILABLE = False
+    _TRANSLATOR_AVAILABLE = False
 
 
 # Patterns for date / datetime detection
@@ -209,28 +208,29 @@ def _infer_db_type(values: list) -> tuple[str, str | None]:
 # Internal helpers — identifier sanitization
 # ---------------------------------------------------------------------------
 
-def _transliterate_to_latin(name: str) -> str:
-    """Return *name* with any Cyrillic (Russian) characters transliterated to Latin.
+def _translate_to_english(name: str) -> str:
+    """Return *name* translated to English if it contains Cyrillic characters.
 
-    Non-Cyrillic text is returned as-is.  If the transliteration library
-    cannot detect the language, or is not installed, the original string is
-    returned unchanged.
+    Non-Cyrillic text is returned as-is.  If the translation library is not
+    installed or the API call fails, the original string is returned unchanged.
     """
-    if not _TRANSLITERATE_AVAILABLE:
+    if not _TRANSLATOR_AVAILABLE:
+        return name
+    if not re.search(r'[а-яёА-ЯЁ]', name):
         return name
     try:
-        return _translit(name, 'ru', reversed=True)
-    except _LanguageDetectionError:
+        return _GoogleTranslator(source='ru', target='en').translate(name) or name
+    except Exception:
         return name
 
 
 def _sanitize_code(name: str) -> str:
     """Convert an arbitrary column header into a valid PostgreSQL identifier.
 
-    Cyrillic text is first transliterated to Latin so that Russian column
-    descriptions produce readable identifiers instead of falling back to 'col'.
+    Cyrillic text is first translated to English so that Russian column
+    descriptions produce meaningful identifiers instead of falling back to 'col'.
     """
-    code = _transliterate_to_latin(name).strip()
+    code = _translate_to_english(name).strip()
     code = re.sub(r"[\s\-']+", '_', code)
     code = re.sub(r'[^A-Za-z0-9_]', '', code)
     if code and code[0].isdigit():
