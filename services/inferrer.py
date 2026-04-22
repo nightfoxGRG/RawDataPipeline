@@ -10,6 +10,8 @@ from io import BytesIO, StringIO
 from pathlib import Path
 
 from openpyxl import load_workbook
+from transliterate import translit
+from transliterate.exceptions import LanguageDetectionError
 
 
 # Patterns for date / datetime detection
@@ -202,10 +204,26 @@ def _infer_db_type(values: list) -> tuple[str, str | None]:
 # Internal helpers — identifier sanitization
 # ---------------------------------------------------------------------------
 
+def _transliterate_to_latin(name: str) -> str:
+    """Return *name* with any Cyrillic (Russian) characters transliterated to Latin.
+
+    Non-Cyrillic text is returned as-is.  If the transliteration library
+    cannot detect the language, the original string is returned unchanged.
+    """
+    try:
+        return translit(name, 'ru', reversed=True)
+    except LanguageDetectionError:
+        return name
+
+
 def _sanitize_code(name: str) -> str:
-    """Convert an arbitrary column header into a valid PostgreSQL identifier."""
-    code = name.strip()
-    code = re.sub(r'[\s\-]+', '_', code)
+    """Convert an arbitrary column header into a valid PostgreSQL identifier.
+
+    Cyrillic text is first transliterated to Latin so that Russian column
+    descriptions produce readable identifiers instead of falling back to 'col'.
+    """
+    code = _transliterate_to_latin(name).strip()
+    code = re.sub(r"[\s\-']+", '_', code)
     code = re.sub(r'[^A-Za-z0-9_]', '', code)
     if code and code[0].isdigit():
         code = '_' + code

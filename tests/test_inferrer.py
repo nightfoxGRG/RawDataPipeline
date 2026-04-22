@@ -1,5 +1,6 @@
 import csv
 import io
+import re
 
 import pytest
 from openpyxl import Workbook
@@ -72,6 +73,18 @@ def test_sanitize_code_leading_digit():
 
 def test_sanitize_code_empty():
     assert _sanitize_code('') == 'col'
+
+
+def test_sanitize_code_cyrillic():
+    code = _sanitize_code('Имя пользователя')
+    # Must be non-empty and contain only lowercase ASCII-identifier chars
+    assert code and code != 'col'
+    assert re.match(r'^[a-z][a-z0-9_]*$', code), f'Not a valid identifier: {code!r}'
+
+
+def test_sanitize_code_cyrillic_single_word():
+    code = _sanitize_code('Идентификатор')
+    assert code == 'identifikator'
 
 
 # ---------------------------------------------------------------------------
