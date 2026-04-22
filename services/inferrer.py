@@ -10,8 +10,13 @@ from io import BytesIO, StringIO
 from pathlib import Path
 
 from openpyxl import load_workbook
-from transliterate import translit
-from transliterate.exceptions import LanguageDetectionError
+
+try:
+    from transliterate import translit as _translit
+    from transliterate.exceptions import LanguageDetectionError as _LanguageDetectionError
+    _TRANSLITERATE_AVAILABLE = True
+except ImportError:
+    _TRANSLITERATE_AVAILABLE = False
 
 
 # Patterns for date / datetime detection
@@ -208,11 +213,14 @@ def _transliterate_to_latin(name: str) -> str:
     """Return *name* with any Cyrillic (Russian) characters transliterated to Latin.
 
     Non-Cyrillic text is returned as-is.  If the transliteration library
-    cannot detect the language, the original string is returned unchanged.
+    cannot detect the language, or is not installed, the original string is
+    returned unchanged.
     """
+    if not _TRANSLITERATE_AVAILABLE:
+        return name
     try:
-        return translit(name, 'ru', reversed=True)
-    except LanguageDetectionError:
+        return _translit(name, 'ru', reversed=True)
+    except _LanguageDetectionError:
         return name
 
 
