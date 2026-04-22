@@ -126,13 +126,6 @@ def generate_excel_config_v2(table_name: str, columns: list[dict]) -> bytes:
     wb = load_workbook(_TEMPLATE_PATH, keep_vba=True)
     template_bytes = _TEMPLATE_PATH.read_bytes()
 
-    # ----- Clear sample data values from tables_config (preserve row structure) -----
-    if 'tables_config' in wb.sheetnames:
-        tc = wb['tables_config']
-        for row in tc.iter_rows(min_row=1, max_row=tc.max_row, min_col=2, max_col=tc.max_column):
-            for cell in row:
-                cell.value = None
-
     ws = wb['tables_config_v2']
 
     # ----- Write table name into B1 (A1 already holds "Наименование таблицы") -----
