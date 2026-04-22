@@ -13,6 +13,7 @@ from services.inferrer import (
 )
 from services.config_generator import generate_excel_config_v2
 from services.models import ConfigParseError
+from app import create_app
 
 
 # ---------------------------------------------------------------------------
@@ -233,3 +234,40 @@ def test_generate_excel_config_v2_full_pipeline():
     assert 'user_id' in col_names
     assert 'username' in col_names
     assert 'score' in col_names
+
+
+# ---------------------------------------------------------------------------
+# Web route: Russian (Cyrillic) filename must not hang the server
+# ---------------------------------------------------------------------------
+
+def test_inferrer_generate_cyrillic_filename():
+    """Uploading a file with a Cyrillic name must return a valid response.
+
+    Previously the Content-Disposition header was built with a raw non-ASCII
+    filename, which caused Werkzeug to fail encoding the header as Latin-1 and
+    the response was never sent (browser appeared to hang).
+    """
+    app = create_app()
+    client = app.test_client()
+
+    csv_bytes = _make_csv_bytes(
+        ['id', 'название'],
+        [['1', 'Тест'], ['2', 'Данные']],
+    )
+
+    data = {
+        'data_file': (io.BytesIO(csv_bytes), 'Данные.csv'),
+    }
+    response = client.post(
+        '/inferrer/generate',
+        data=data,
+        content_type='multipart/form-data',
+    )
+
+    assert response.status_code == 200
+    cd = response.headers.get('Content-Disposition', '')
+    assert 'attachment' in cd
+    # RFC 5987 encoded name must be present
+    assert "filename*=UTF-8''" in cd
+    # The Cyrillic characters must appear percent-encoded, not raw
+    assert '%' in cd

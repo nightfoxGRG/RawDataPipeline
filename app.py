@@ -1,4 +1,5 @@
 from pathlib import Path
+from urllib.parse import quote
 
 from flask import Flask, Response, render_template, request, send_from_directory
 
@@ -62,10 +63,16 @@ def create_app() -> Flask:
             return render_template('inferrer.html', errors=[str(exc)])
 
         download_name = f'{table_name}_config.xlsm'
+        ascii_name = download_name.encode('ascii', 'replace').decode('ascii')
+        encoded_name = quote(download_name, encoding='utf-8')
         return Response(
             xlsx_bytes,
             mimetype='application/vnd.ms-excel.sheet.macroEnabled.12',
-            headers={'Content-Disposition': f'attachment; filename={download_name}'},
+            headers={
+                'Content-Disposition': (
+                    f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{encoded_name}"
+                ),
+            },
         )
 
     @app.get('/download-template')
