@@ -3,25 +3,42 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>TableCreator</title>
+    <title>{{ project_name }} — Генератор SQL</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
   </head>
-  <body>
-    <main class="container">
-      <nav class="tabs">
-        <a href="{{ url_for('inferrer') }}" class="tab-link">Генератор конфига</a>
-        <a href="{{ url_for('sql') }}" class="tab-link tab-link--active">Генератор SQL</a>
-      </nav>
+  <body class="mode-{{ run_mode }}">
+    <div class="mode-badge mode-badge--{{ run_mode }}">
+      {% if run_mode == 'local' %}локальный режим{% else %}серверный режим{% endif %}
+    </div>
 
+    <aside class="sidebar">
+      <div class="sidebar-project-name">{{ project_name }}</div>
+      <nav class="sidebar-nav">
+        <a href="{{ url_for('inferrer') }}" class="nav-link">Генератор конфига</a>
+        <a href="{{ url_for('sql') }}" class="nav-link nav-link--active">Генератор SQL</a>
+      </nav>
+    </aside>
+    <div class="content">
       <div class="page-header">
-        <h1>Генератор SQL для PostgreSQL</h1>
-        <a href="{{ url_for('download_template') }}" class="btn-secondary">Скачать шаблон .xlsm</a>
+        <h1>Генератор SQL-запросов CREATE TABLE на основе конфигурационного файла</h1>
       </div>
 
-      <form method="post" action="{{ url_for('sql') }}" enctype="multipart/form-data" class="card">
-        <label for="config_file">Загрузите файл конфигурации</label>
-        <input id="config_file" name="config_file" type="file" required>
-        <button type="submit">Сгенерировать SQL</button>
+      <a href="{{ url_for('download_template') }}" class="btn-secondary">Скачать шаблон .xlsm</a>
+
+      <form id="sql-form" method="post" action="{{ url_for('sql') }}" enctype="multipart/form-data">
+        <input id="config_file" name="config_file" type="file" required style="display:none"
+               onchange="this.form.submit()">
+        <button type="button" onclick="document.getElementById('config_file').click()">
+          Загрузить конфигурационный файл
+        </button>
+        <div class="checkbox-row">
+          <input type="checkbox" id="add_pk" name="add_pk" value="1" {% if add_pk %}checked{% endif %}>
+          <label for="add_pk">Добавить <code>id</code>, если первичный ключ не задан</label>
+        </div>
+        <div class="checkbox-row">
+          <input type="checkbox" id="add_package_fields" name="add_package_fields" value="1" {% if add_package_fields %}checked{% endif %}>
+          <label for="add_package_fields">Добавить <code>package_id</code> и <code>package_timestamp</code>, если отсутствуют</label>
+        </div>
       </form>
 
       {% if errors %}
@@ -36,7 +53,7 @@
       {% endif %}
 
       {% if sql_output %}
-      <section class="card">
+      <section style="margin-top: 24px; padding-bottom: 40px;">
         <h2>Сгенерированный SQL</h2>
         <textarea readonly rows="16">{{ sql_output }}</textarea>
         <form method="post" action="{{ url_for('download_sql') }}">
@@ -45,6 +62,6 @@
         </form>
       </section>
       {% endif %}
-    </main>
+    </div>
   </body>
 </html>

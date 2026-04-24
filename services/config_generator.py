@@ -111,18 +111,47 @@ def _restore_x14_validations(template_bytes: bytes, output_bytes: bytes) -> byte
     return result.getvalue()
 
 
-def generate_excel_config_v2(table_name: str, columns: list[dict]) -> bytes:
-    """Build and return bytes of an xlsm workbook containing a tables_config_v2 sheet.
+_AUTO_PK_COL = {'label': 'Ид', 'code': 'id', 'db_type': 'bigserial', 'primary_key': True}
+_PACKAGE_ID_COL = {'label': 'Пакетный ид', 'code': 'package_id', 'db_type': 'varchar'}
+_PACKAGE_TS_COL = {'label': 'Пакетный временной штамп', 'code': 'package_timestamp', 'db_type': 'timestamptz'}
 
-    Loads TablesConfig.xlsm as a template and fills in the first table block
-    without deleting any rows or overwriting styles, formulas, or other settings.
-    Only cell values are written.
+
+def generate_excel_config_v2(
+    table_name: str,
+    columns: list[dict],
+    add_pk: bool = False,
+    add_package_fields: bool = False,
+) -> bytes:
+    """Build and return bytes of an xlsm workbook containing a tables_config_v2 sheet.
 
     Each dict in *columns* must contain at least:
       'code'    – column code (SQL identifier)
       'db_type' – PostgreSQL type
-    Optional keys: 'label', 'size'.
+    Optional keys: 'label', 'size', 'primary_key'.
     """
+    columns = list(columns)
+
+    # Добавить id если нет первичного ключа
+    if add_pk and not any(c.get('primary_key') for c in columns):
+        columns = [_AUTO_PK_COL] + columns
+
+    # Добавить package_id, package_timestamp если отсутствуют
+    if add_package_fields:
+        existing = {c['code'].lower() for c in columns}
+        need_pkg_id = 'package_id' not in existing
+        need_pkg_ts = 'package_timestamp' not in existing
+        if need_pkg_id or need_pkg_ts:
+            ref_idx = next((i for i, c in enumerate(columns) if c['code'].lower() == 'package_id'), -1)
+            if ref_idx < 0:
+                ref_idx = next((i for i, c in enumerate(columns) if c['code'].lower() == 'id'), -1)
+            insert_at = ref_idx + 1 if ref_idx >= 0 else 0
+            pkg_cols = []
+            if need_pkg_id:
+                pkg_cols.append(_PACKAGE_ID_COL)
+            if need_pkg_ts:
+                pkg_cols.append(_PACKAGE_TS_COL)
+            columns = columns[:insert_at] + pkg_cols + columns[insert_at:]
+
     wb = load_workbook(_TEMPLATE_PATH, keep_vba=True)
     template_bytes = _TEMPLATE_PATH.read_bytes()
 
@@ -138,6 +167,8 @@ def generate_excel_config_v2(table_name: str, columns: list[dict]) -> bytes:
             cell.value = None
 
     # ----- Write column data starting at row 3 -----
+    # Columns: A=Описание, B=Код колонки в БД, C=Тип, D=Размерность,
+    #          E=Обязательность, F=Уникальность, G=Первичный ключ, H=Внешний ключ, I=Default
     for row_idx, col_info in enumerate(columns, start=3):
         ws.cell(row=row_idx, column=1).value = col_info.get('label') or col_info['code']
         ws.cell(row=row_idx, column=2).value = col_info['code']
@@ -145,6 +176,18 @@ def generate_excel_config_v2(table_name: str, columns: list[dict]) -> bytes:
         size = col_info.get('size')
         if size:
             ws.cell(row=row_idx, column=4).value = size
+        if col_info.get('primary_key'):
+            ws.cell(row=row_idx, column=7).value = 'да'
+
+    # ----- Авто-выравнивание ширины колонок по содержимому -----
+    for col_cells in ws.iter_cols(min_row=1, max_row=ws.max_row, min_col=1, max_col=_V2_DATA_COLS):
+        max_len = 0
+        col_letter = col_cells[0].column_letter
+        for cell in col_cells:
+            if cell.value is not None:
+                max_len = max(max_len, len(str(cell.value)))
+        if max_len > 0:
+            ws.column_dimensions[col_letter].width = min(max_len + 4, 60)
 
     output = BytesIO()
     wb.save(output)

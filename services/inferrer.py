@@ -15,10 +15,10 @@ import requests
 from openpyxl import load_workbook
 
 # ---------------------------------------------------------------------------
-# Load translation service URL from config.toml (project root)
+# Load translation service URL from config/config.toml
 # ---------------------------------------------------------------------------
 
-_CONFIG_PATH = Path(__file__).parent.parent / 'config.toml'
+_CONFIG_PATH = Path(__file__).parent.parent / 'config' / 'config.toml'
 
 def _load_libretranslate_url() -> str:
     try:
@@ -224,11 +224,14 @@ def _infer_db_type(values: list) -> tuple[str, str | None]:
 def _translate_to_english(name: str) -> str:
     """Return *name* translated to English via LibreTranslate if it contains Cyrillic.
 
-    Non-Cyrillic text is returned as-is.  If the service is unreachable or
-    returns an error, the original string is returned unchanged.
+    Non-Cyrillic text is returned as-is.
+    Raises ConfigParseError if the service is unreachable or returns an error.
     """
     if not re.search(r'[а-яёА-ЯЁ]', name):
         return name
+
+    from services.models import ConfigParseError
+
     try:
         response = requests.post(
             f'{LIBRETRANSLATE_URL}/translate',
@@ -236,9 +239,27 @@ def _translate_to_english(name: str) -> str:
             timeout=5,
         )
         response.raise_for_status()
-        return response.json().get('translatedText') or name
-    except Exception:
-        return name
+        translated = response.json().get('translatedText')
+        if not translated:
+            raise ConfigParseError(
+                f'Сервис перевода ({LIBRETRANSLATE_URL}) вернул пустой ответ.'
+            )
+        return translated
+    except ConfigParseError:
+        raise
+    except requests.exceptions.ConnectionError:
+        raise ConfigParseError(
+            f'Сервис перевода недоступен ({LIBRETRANSLATE_URL}). '
+        )
+    except requests.exceptions.Timeout:
+        raise ConfigParseError(
+            f'Сервис перевода не ответил вовремя ({LIBRETRANSLATE_URL}). '
+            f'Превышено время ожидания 5 секунд.'
+        )
+    except Exception as exc:
+        raise ConfigParseError(
+            f'Ошибка при обращении к сервису перевода ({LIBRETRANSLATE_URL}): {exc}'
+        )
 
 
 def _sanitize_code(name: str) -> str:

@@ -1,17 +1,108 @@
 :root {
   font-family: Arial, sans-serif;
+  font-size: 14px;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
-  background: #f4f6fb;
   margin: 0;
-  padding: 24px;
+  padding: 0;
+  display: flex;
+  min-height: 100vh;
 }
 
-.container {
-  width: 90%;
-  max-width: 1200px;
-  margin: 0 auto;
+/* Фон body нейтральный — цвета задаются в .sidebar и .content */
+
+/* ── Боковая панель ── */
+.sidebar {
+  width: 220px;
+  min-width: 220px;
+  background: #f5f5f5;
+  border-right: 1px solid #e0e4ea;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.sidebar-project-name {
+  padding: 18px 20px 14px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1a1a1a;
+  border-bottom: 1px solid #e0e4ea;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Бейдж режима (правый верхний угол, фиксированный) ── */
+.mode-badge {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 900;
+  padding: 6px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: 0.03em;
+  pointer-events: none;
+  user-select: none;
+  border-radius: 0 0 0 8px;
+  white-space: nowrap;
+}
+
+.mode-badge--server {
+  background: #fde8e8;
+  color: #c0392b;
+}
+
+.mode-badge--local {
+  background: #daeeff;
+  color: #1a6fa8;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  padding: 12px 0;
+  flex: 1;
+}
+
+.nav-link {
+  display: block;
+  padding: 11px 20px;
+  text-decoration: none;
+  color: #3c4043;
+  font-size: 14px;
+  border-left: 3px solid transparent;
+  transition: background 0.12s;
+}
+
+.nav-link:hover {
+  background: #f1f3f4;
+}
+
+.nav-link--active {
+  color: #1a73e8;
+  font-weight: bold;
+  border-left-color: #1a73e8;
+  background: #e8f0fe;
+}
+
+/* ── Основной контент ── */
+.content {
+  flex: 1;
+  padding: 28px 36px;
+  min-width: 0;
+  background: #ffffff;
 }
 
 .page-header {
@@ -20,84 +111,261 @@ body {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px;
+  margin-bottom: 4px;
+}
+
+h1 {
+  font-size: 1.3rem;
+  margin: 0 0 16px 0;
 }
 
 .page-header h1 {
   margin: 0;
 }
 
+h2 {
+  font-size: 1.05rem;
+  margin: 0 0 10px 0;
+}
+
+/* ── Карточки ── */
 .card {
   background: #fff;
   border-radius: 8px;
-  padding: 16px;
+  padding: 18px;
   margin-top: 16px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
-}
-
-.tabs {
-  display: flex;
-  gap: 4px;
-  margin-top: 16px;
-  border-bottom: 2px solid #d0d7e2;
-  padding-bottom: 0;
-}
-
-.tab-link {
-  display: inline-block;
-  padding: 8px 18px;
-  border-radius: 6px 6px 0 0;
-  text-decoration: none;
-  color: #1a73e8;
-  background: #e8f0fe;
-  font-size: inherit;
-  border: 1px solid #d0d7e2;
-  border-bottom: none;
-  margin-bottom: -2px;
-}
-
-.tab-link--active {
-  background: #fff;
-  color: #202124;
-  font-weight: bold;
-  border-color: #d0d7e2;
-  z-index: 1;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
 }
 
 .hint {
-  margin-top: 12px;
+  margin: 0 0 4px 0;
   color: #5f6368;
+  line-height: 1.5;
 }
 
 .error {
   border-left: 4px solid #c5221f;
 }
 
+/* ── Строка с чекбоксом ── */
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 13px;
+  color: #3c4043;
+}
+
+.checkbox-row input[type="checkbox"] {
+  margin: 0;
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.checkbox-row label {
+  display: inline;
+  margin: 0;
+  cursor: pointer;
+}
+
+
+label {
+  display: block;
+  margin-bottom: 8px;
+  color: #3c4043;
+}
+
+input[type="file"] {
+  display: block;
+  margin-bottom: 4px;
+}
+
 textarea {
   width: 100%;
-  box-sizing: border-box;
-  margin: 12px 0;
+  margin: 10px 0;
 }
 
-button {
-  display: block;
-  background: #1a73e8;
-  color: #fff;
-  border: 0;
-  padding: 10px 14px;
+button, .btn-save, .btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  padding: 0 20px;
   border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
-  margin-top: 12px;
-}
-
-.btn-secondary {
-  display: inline-block;
-  background: #fff;
-  color: #1a73e8;
-  border: 1px solid #1a73e8;
-  padding: 9px 14px;
-  border-radius: 6px;
-  cursor: pointer;
-  margin-top: 12px;
   text-decoration: none;
-  font-size: inherit;
+  border: none;
+  background: #e8e8e8;
+  color: #1a1a1a;
+  transition: background 0.15s;
+  margin-top: 10px;
 }
+
+button:hover, .btn-save:hover, .btn-secondary:hover {
+  background: #d4d4d4;
+}
+
+/* ── Спиннер ── */
+.spinner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  color: #5f6368;
+  font-size: 14px;
+}
+
+.spinner-icon {
+  width: 18px;
+  height: 18px;
+  border: 3px solid #d0d7e2;
+  border-top-color: #1a73e8;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  display: inline-block;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Модальное окно ── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: #fff;
+  border-radius: 16px;
+  padding: 0;
+  min-width: 420px;
+  max-width: 560px;
+  width: 90%;
+  text-align: left;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 22px 28px 18px;
+}
+
+.modal-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #9aa0a6;
+  font-size: 20px;
+  line-height: 1;
+  padding: 4px 6px;
+  margin: 0;
+  margin-top: 0;
+  height: auto;
+  border-radius: 50%;
+  transition: background 0.15s, color 0.15s;
+}
+
+.modal-close:hover {
+  background: #f1f3f4;
+  color: #3c4043;
+}
+
+.modal-divider {
+  height: 1px;
+  background: #e0e4ea;
+  margin: 0;
+}
+
+.modal-body {
+  padding: 24px 28px;
+  flex: 1;
+}
+
+.modal-icon {
+  font-size: 40px;
+  margin-bottom: 12px;
+}
+
+.modal-desc {
+  color: #5f6368;
+  font-size: 13px;
+  margin: 0;
+  word-break: break-all;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 16px;
+  justify-content: flex-end;
+  padding: 20px 28px 24px;
+}
+
+.btn-modal-cancel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  padding: 0 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+  border: none;
+  background: #c8cdd4;
+  color: #3c4043;
+  transition: background 0.15s;
+  margin-top: 0;
+  flex: 1;
+}
+
+.btn-modal-cancel:hover {
+  background: #b8bdc4;
+}
+
+.btn-modal-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  padding: 0 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+  border: none;
+  background: #e53935;
+  color: #fff;
+  transition: background 0.15s;
+  margin-top: 0;
+  flex: 1;
+}
+
+.btn-modal-primary:hover {
+  background: #c62828;
+}
+

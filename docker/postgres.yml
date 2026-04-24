@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:latest  # всегда будет использоваться последняя версия
+    container_name: my-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: data_pipeline_pro
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/Volumes/External_SSD/work/postgresql_data  # Это и есть persistent volume
+
+volumes:
+  postgres_data:  # Объявляем том, который будет хранить данные

@@ -1,19 +1,43 @@
+import sys
 from pathlib import Path
 from urllib.parse import quote
 
-from flask import Flask, Response, render_template, request, send_from_directory
+from flask import Flask, Response, jsonify, render_template, request, send_from_directory
 
 from services.config_generator import generate_excel_config_v2
+from config.config_loader import load_config
+from config.db_migrate_config_at_start import run_migrations_on_start
 from services.inferrer import ALLOWED_DATA_EXTENSIONS, infer_columns, read_data_file
 from services.models import ConfigParseError
 from services.parser import parse_tables_config
-from services.sql_generator import generate_sql
+from services.sql.sql_generator import generate_sql
 from services.upload import UploadError, read_uploaded_file
 from services.validators import validate_tables
+
+_CONFIG_PATH = Path(__file__).parent / 'config' / 'config.toml'
+
+
+def _load_config() -> dict:
+    try:
+        return load_config()
+    except Exception:
+        return {}
 
 
 def create_app() -> Flask:
     app = Flask(__name__)
+
+    _cfg = _load_config()
+    # Определяем режим запуска: локальный (PyInstaller .exe/.app) или серверный
+    _run_mode = 'local' if getattr(sys, 'frozen', False) else 'server'
+    _project_name = _cfg.get('app', {}).get('project_name', 'TableCreator')
+
+    # Автоматически применить миграции БД при старте
+    run_migrations_on_start()
+
+    @app.context_processor
+    def inject_globals():
+        return {'run_mode': _run_mode, 'project_name': _project_name}
 
     @app.route('/', methods=['GET'])
     def index():
@@ -23,18 +47,22 @@ def create_app() -> Flask:
     def sql():
         sql_output = ''
         errors = []
+        add_pk = True
+        add_package_fields = True
 
         if request.method == 'POST':
             try:
+                add_pk = request.form.get('add_pk') == '1'
+                add_package_fields = request.form.get('add_package_fields') == '1'
                 content, filename = read_uploaded_file(request.files.get('config_file'))
                 tables = parse_tables_config(content, filename)
                 errors = validate_tables(tables)
                 if not errors:
-                    sql_output = generate_sql(tables)
+                    sql_output = generate_sql(tables, add_pk=add_pk, add_package_fields=add_package_fields)
             except (UploadError, ConfigParseError) as exc:
                 errors.append(str(exc))
 
-        return render_template('index.html', sql_output=sql_output, errors=errors)
+        return render_template('index.html', sql_output=sql_output, errors=errors, add_pk=add_pk, add_package_fields=add_package_fields)
 
     @app.get('/inferrer')
     def inferrer():
@@ -44,27 +72,27 @@ def create_app() -> Flask:
     def inferrer_generate():
         file_storage = request.files.get('data_file')
         if file_storage is None or not file_storage.filename:
-            return render_template('inferrer.html', errors=['Не выбран файл данных.'])
+            return jsonify(error='Не выбран файл данных.'), 400
 
         filename = file_storage.filename
         ext = Path(filename).suffix.lower()
         if ext not in ALLOWED_DATA_EXTENSIONS:
             allowed = ', '.join(sorted(ALLOWED_DATA_EXTENSIONS))
-            return render_template(
-                'inferrer.html',
-                errors=[f'Поддерживаются только файлы: {allowed}'],
-            )
+            return jsonify(error=f'Поддерживаются только файлы: {allowed}'), 400
 
         content = file_storage.read()
         if not content:
-            return render_template('inferrer.html', errors=['Загруженный файл пустой.'])
+            return jsonify(error='Загруженный файл пустой.'), 400
+
+        add_pk = request.form.get('add_pk') == '1'
+        add_package_fields = request.form.get('add_package_fields') == '1'
 
         try:
             table_name, headers, rows = read_data_file(content, filename)
             columns = infer_columns(headers, rows)
-            xlsx_bytes = generate_excel_config_v2(table_name, columns)
+            xlsx_bytes = generate_excel_config_v2(table_name, columns, add_pk=add_pk, add_package_fields=add_package_fields)
         except (ConfigParseError, Exception) as exc:
-            return render_template('inferrer.html', errors=[str(exc)])
+            return jsonify(error=str(exc)), 422
 
         download_name = f'{table_name}_config.xlsm'
         ascii_name = download_name.encode('ascii', 'replace').decode('ascii')

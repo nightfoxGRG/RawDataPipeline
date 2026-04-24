@@ -1,0 +1,17 @@
+[app]
+# Название проекта, отображаемое в заголовке браузера и интерфейсе
+project_name = "Конвейер Данных Про"
+
+[database]
+# Параметры подключения к PostgreSQL
+host     = "localhost"
+port     = 5432
+name     = ""
+user     = ""
+password = ""
+
+[translation]
+# URL of the LibreTranslate service used to translate Cyrillic column headers
+# to English SQL identifiers. Change this value before starting the application
+# if the service is running on a different host or port.
+libretranslate_url = "http://127.0.0.1:50001"

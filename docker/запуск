@@ -1,5 +1,6 @@
 docker-compose -f libretranslate.yml -p libretranslate up -d
 
+docker-compose -f postgres.yml -p data_pipeline_pro up -d
 
 
 скачать модели для LibreTranslate

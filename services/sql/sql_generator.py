@@ -1,14 +1,52 @@
 from services.models import ColumnConfig, TableConfig
-from services.pg_types import is_boolean_type, is_numeric_type, is_quoted_type, is_sql_expression
+from services.sql.pg_types import is_boolean_type, is_numeric_type, is_quoted_type, is_sql_expression
 
 
 _SIZED_TYPES = {'varchar', 'character varying', 'char', 'character', 'numeric', 'decimal'}
 
+_AUTO_PK = ColumnConfig(
+    name='id',
+    db_type='bigserial',
+    nullable=False,
+    primary_key=True,
+    label='Ид',
+)
 
-def generate_sql(tables: list[TableConfig]) -> str:
+_PACKAGE_ID = ColumnConfig(name='package_id', db_type='varchar', nullable=False, label='Пакетный ид')
+_PACKAGE_TS = ColumnConfig(name='package_timestamp', db_type='timestamptz', nullable=False, label='Пакетный временной штамп')
+
+
+def generate_sql(tables: list[TableConfig], add_pk: bool = False, add_package_fields: bool = False) -> str:
     statements = []
     for table in tables:
-        parts_list = [_column_parts(col) for col in table.columns]
+        columns = list(table.columns)
+
+        # Добавить id если нет первичного ключа
+        if add_pk and not any(c.primary_key for c in columns):
+            columns = [_AUTO_PK] + columns
+
+        # Добавить package_id, package_timestamp если отсутствуют
+        if add_package_fields:
+            existing_names = {c.name.lower() for c in columns}
+            need_pkg_id = 'package_id' not in existing_names
+            need_pkg_ts = 'package_timestamp' not in existing_names
+
+            if need_pkg_id or need_pkg_ts:
+                # Точка вставки: после package_id (если есть), иначе после id (если есть), иначе в начало
+                ref_idx = next((i for i, c in enumerate(columns) if c.name.lower() == 'package_id'), -1)
+                if ref_idx < 0:
+                    ref_idx = next((i for i, c in enumerate(columns) if c.name.lower() == 'id'), -1)
+                insert_at = ref_idx + 1 if ref_idx >= 0 else 0
+
+                # package_id вставляем первым, package_timestamp — за ним
+                pkg_cols: list[ColumnConfig] = []
+                if need_pkg_id:
+                    pkg_cols.append(_PACKAGE_ID)
+                if need_pkg_ts:
+                    pkg_cols.append(_PACKAGE_TS)
+
+                columns = columns[:insert_at] + pkg_cols + columns[insert_at:]
+        parts_list = [_column_parts(col) for col in columns]
         name_width = max(len(p[0]) for p in parts_list)
         type_width = max(len(p[1]) for p in parts_list)
 
