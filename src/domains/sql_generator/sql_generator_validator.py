@@ -1,7 +1,8 @@
 import re
 
-from services.models import ConfigParseError, TableConfig
-from api.sql_generator.pg_types import is_boolean_type, is_numeric_type, is_sql_expression
+from common.error import AppError
+from domains.table_config.table_config_model import TableConfig
+from src.domains.sql_generator.postgres_types import is_boolean_type, is_numeric_type, is_sql_expression
 
 
 _IDENTIFIER_PATTERN = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
@@ -116,7 +117,7 @@ def _validate_yes_no_cell(value: str | None, field: str, column: str, table: str
     if value is None:
         return
     if value.lower() not in {'да', 'нет'}:
-        raise ConfigParseError(
+        raise AppError(
             f'Колонка {column} таблицы {table}: поле "{field}" содержит недопустимое значение '
             f'"{value}". Допустимы только "да", "нет" или пустое значение.'
         )
@@ -126,7 +127,7 @@ def _validate_reference_cell(value: str | None, column: str, table: str) -> None
     if value is None:
         return
     if not _REFERENCE_PATTERN.match(value):
-        raise ConfigParseError(
+        raise AppError(
             f'Колонка {column} таблицы {table}: некорректный формат ссылки '
             f'"{value}". Ожидается формат table(column).'
         )

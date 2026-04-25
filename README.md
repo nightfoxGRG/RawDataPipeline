@@ -93,7 +93,7 @@ docker compose -f docker/libretranslate.yml up -d
 Приложение можно собрать в самостоятельный исполняемый файл для macOS и Windows с помощью [PyInstaller](https://pyinstaller.org/):
 
 ```bash
-pyinstaller TableCreator.spec
+pyinstaller DataPipelinePro.spec
 ```
 
 Собранный файл не требует установки Python и запускается в **локальном режиме**.

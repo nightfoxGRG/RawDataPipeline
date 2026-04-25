@@ -6,9 +6,9 @@ from pathlib import Path
 import psycopg2
 from yoyo import get_backend, read_migrations
 
-from config.config_loader import load_config
+from src.config.config_loader import load_config
 
-_MIGRATIONS_DIR = str(Path(__file__).parent.parent / 'migrations')
+_MIGRATIONS_DIR = str(Path(__file__).parent.parent.parent / 'migrations')
 _MIGRATE_SCHEMA = 'system'
 _MIGRATION_TABLE = '_yoyo_migration'
 
@@ -48,8 +48,10 @@ def run_migrations_on_start() -> None:
     cfg = load_config()
     db = cfg.get('database', {})
     if not db.get('host') or not db.get('name'):
-        print('[migrate] Параметры подключения к БД не заданы — миграции пропущены.')
-        return
+        raise ValueError(
+            '[migrate] Ошибка конфигурации: параметры подключения к БД (host, name) не заданы. '
+            'Проверьте config.toml или переменные окружения.'
+        )
 
     dsn = build_dsn(db)
     try:

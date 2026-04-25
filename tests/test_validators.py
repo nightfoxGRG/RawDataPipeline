@@ -1,5 +1,5 @@
-from services.models import ColumnConfig, TableConfig
-from services.validators import validate_tables
+from common.error import ColumnConfig, TableConfig
+from domains.sql_generator.sql_generator_validator import validate_tables
 
 
 def test_validate_tables_detects_duplicates_and_reserved_words():

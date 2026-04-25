@@ -5,7 +5,7 @@ from datetime import datetime
 from sqlalchemy import Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
-from config.sqlalchemy_db_orm.db_base_config import Base
+from config.db_orm_sqlalchemy.db_base_config import Base
 
 
 class User(Base):

@@ -6,30 +6,12 @@ The first row of the input file is expected to contain column headers.
 
 import csv
 import re
-import tomllib
+
 from io import BytesIO, StringIO
 from pathlib import Path
-
-import requests
-
 from openpyxl import load_workbook
 
-# ---------------------------------------------------------------------------
-# Load translation service URL from config/config.toml
-# ---------------------------------------------------------------------------
-
-_CONFIG_PATH = Path(__file__).parent.parent / 'config' / 'config.toml'
-
-def _load_libretranslate_url() -> str:
-    try:
-        with open(_CONFIG_PATH, 'rb') as _f:
-            _cfg = tomllib.load(_f)
-        return _cfg.get('translation', {}).get('libretranslate_url', 'http://127.0.0.1:50001')
-    except Exception:
-        return 'http://127.0.0.1:50001'
-
-LIBRETRANSLATE_URL: str = _load_libretranslate_url()
-
+from domains.libretranslate.libretranslate_service import _translate_to_english
 
 # Patterns for date / datetime detection
 _DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
@@ -61,8 +43,8 @@ def read_data_file(content: bytes, filename: str) -> tuple[str, list[str], list[
     elif extension == '.csv':
         headers, rows = _read_csv(content)
     else:
-        from services.models import ConfigParseError
-        raise ConfigParseError(
+        from common.error import AppError
+        raise AppError(
             f'Неподдерживаемый формат файла данных. '
             f'Допустимы: {", ".join(sorted(ALLOWED_DATA_EXTENSIONS))}.'
         )
@@ -101,8 +83,8 @@ def _read_excel(content: bytes) -> tuple[list[str], list[list]]:
     ws = wb.active
     all_rows = [list(row) for row in ws.iter_rows(values_only=True)]
     if not all_rows:
-        from services.models import ConfigParseError
-        raise ConfigParseError('Файл данных пустой.')
+        from common.error import AppError
+        raise AppError('Файл данных пустой.')
     headers = [str(cell) if cell is not None else '' for cell in all_rows[0]]
     rows = all_rows[1:]
     return headers, rows
@@ -121,8 +103,8 @@ def _read_csv(content: bytes) -> tuple[list[str], list[list]]:
     reader = csv.reader(StringIO(text))
     all_rows = list(reader)
     if not all_rows:
-        from services.models import ConfigParseError
-        raise ConfigParseError('Файл данных пустой.')
+        from common.error import AppError
+        raise AppError('Файл данных пустой.')
     headers = all_rows[0]
     rows = all_rows[1:]
     return headers, rows
@@ -221,45 +203,7 @@ def _infer_db_type(values: list) -> tuple[str, str | None]:
 # Internal helpers — identifier sanitization
 # ---------------------------------------------------------------------------
 
-def _translate_to_english(name: str) -> str:
-    """Return *name* translated to English via LibreTranslate if it contains Cyrillic.
 
-    Non-Cyrillic text is returned as-is.
-    Raises ConfigParseError if the service is unreachable or returns an error.
-    """
-    if not re.search(r'[а-яёА-ЯЁ]', name):
-        return name
-
-    from services.models import ConfigParseError
-
-    try:
-        response = requests.post(
-            f'{LIBRETRANSLATE_URL}/translate',
-            json={'q': name, 'source': 'ru', 'target': 'en', 'format': 'text'},
-            timeout=5,
-        )
-        response.raise_for_status()
-        translated = response.json().get('translatedText')
-        if not translated:
-            raise ConfigParseError(
-                f'Сервис перевода ({LIBRETRANSLATE_URL}) вернул пустой ответ.'
-            )
-        return translated
-    except ConfigParseError:
-        raise
-    except requests.exceptions.ConnectionError:
-        raise ConfigParseError(
-            f'Сервис перевода недоступен ({LIBRETRANSLATE_URL}). '
-        )
-    except requests.exceptions.Timeout:
-        raise ConfigParseError(
-            f'Сервис перевода не ответил вовремя ({LIBRETRANSLATE_URL}). '
-            f'Превышено время ожидания 5 секунд.'
-        )
-    except Exception as exc:
-        raise ConfigParseError(
-            f'Ошибка при обращении к сервису перевода ({LIBRETRANSLATE_URL}): {exc}'
-        )
 
 
 def _sanitize_code(name: str) -> str:

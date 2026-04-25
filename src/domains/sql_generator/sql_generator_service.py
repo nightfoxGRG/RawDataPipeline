@@ -1,9 +1,9 @@
-from services.models import ColumnConfig, TableConfig
-from api.sql_generator.pg_types import is_numeric_type, is_quoted_type, is_sql_expression
-from src.util.file_util import UploadError, read_uploaded_file
-from api.table_config.table_config_parser_service import parse_tables_config
-from services.validators import validate_tables
-from services.models import ConfigParseError
+from domains.table_config.table_config_model import ColumnConfig, TableConfig
+from src.domains.sql_generator.postgres_types import is_numeric_type, is_quoted_type, is_sql_expression
+from src.utils.file_util import UploadError, read_uploaded_file
+from src.domains.table_config.table_config_parser_service import parse_tables_config
+from domains.sql_generator.sql_generator_validator import validate_tables
+from common.error import AppError
 
 
 _SIZED_TYPES = {'varchar', 'character varying', 'char', 'character', 'numeric', 'decimal'}
@@ -36,7 +36,7 @@ def generate_sql_from_config(files, form) -> tuple[str, list[str], bool, bool]:
         errors = validate_tables(tables)
         if not errors:
             sql_output = generate_sql(tables, add_pk=add_pk, add_package_fields=add_package_fields)
-    except (UploadError, ConfigParseError) as exc:
+    except (UploadError, AppError) as exc:
         errors.append(str(exc))
 
     return sql_output, errors, add_pk, add_package_fields

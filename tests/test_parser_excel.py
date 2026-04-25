@@ -3,7 +3,7 @@ from io import BytesIO
 import pytest
 from openpyxl import Workbook
 
-from api.table_config.table_config_parser_service import ConfigParseError, parse_tables_config
+from domains.table_config.table_config_parser_service import AppError, parse_tables_config
 
 
 def test_parse_excel_tables_config_like_template():
@@ -209,7 +209,7 @@ def test_parse_excel_v2_invalid_primary_key_raises_error():
         }
     ])
 
-    with pytest.raises(ConfigParseError, match='Первичный ключ'):
+    with pytest.raises(AppError, match='Первичный ключ'):
         parse_tables_config(content, 'config.xlsm')
 
 
@@ -225,7 +225,7 @@ def test_parse_excel_v2_invalid_foreign_key_raises_error():
         }
     ])
 
-    with pytest.raises(ConfigParseError, match='некорректный формат ссылки'):
+    with pytest.raises(AppError, match='некорректный формат ссылки'):
         parse_tables_config(content, 'config.xlsm')
 
 
@@ -273,7 +273,7 @@ def test_parse_excel_invalid_primary_key_value_raises_error():
     payload = BytesIO()
     wb.save(payload)
 
-    with pytest.raises(ConfigParseError, match='Первичный ключ'):
+    with pytest.raises(AppError, match='Первичный ключ'):
         parse_tables_config(payload.getvalue(), 'config.xlsx')
 
 
@@ -336,7 +336,7 @@ def test_parse_excel_invalid_required_value_raises_error():
     payload = BytesIO()
     wb.save(payload)
 
-    with pytest.raises(ConfigParseError, match='Обязательность'):
+    with pytest.raises(AppError, match='Обязательность'):
         parse_tables_config(payload.getvalue(), 'config.xlsx')
 
 
@@ -357,7 +357,7 @@ def test_parse_excel_invalid_unique_value_raises_error():
     payload = BytesIO()
     wb.save(payload)
 
-    with pytest.raises(ConfigParseError, match='Уникальность'):
+    with pytest.raises(AppError, match='Уникальность'):
         parse_tables_config(payload.getvalue(), 'config.xlsx')
 
 
@@ -381,7 +381,7 @@ def test_parse_excel_invalid_reference_format_raises_error():
     payload = BytesIO()
     wb.save(payload)
 
-    with pytest.raises(ConfigParseError, match='некорректный формат ссылки'):
+    with pytest.raises(AppError, match='некорректный формат ссылки'):
         parse_tables_config(payload.getvalue(), 'config.xlsx')
 
 

@@ -1,7 +1,7 @@
 import re
 
-from services.models import ColumnConfig, TableConfig
-from api.sql_generator.sql_generator_service import generate_sql
+from common.error import ColumnConfig, TableConfig
+from domains.sql_generator.sql_generator_service import generate_sql
 
 
 def test_generate_sql_includes_constraints_and_references():

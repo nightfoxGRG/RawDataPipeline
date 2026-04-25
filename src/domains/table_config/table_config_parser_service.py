@@ -4,8 +4,9 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
-from services.models import ColumnConfig, ConfigParseError, TableConfig
-from services.validators import _validate_reference_cell, _validate_yes_no_cell
+from domains.table_config.table_config_model import TableConfig, ColumnConfig
+from common.error import AppError
+from domains.sql_generator.sql_generator_validator import _validate_reference_cell, _validate_yes_no_cell
 
 
 TABLE_NAME_LABELS = {'наименование таблицы', 'table_name'}
@@ -28,20 +29,20 @@ def parse_tables_config(content: bytes, filename: str) -> list[TableConfig]:
         data = json.loads(content.decode('utf-8'))
         tables = _parse_structured_tables(data)
     else:
-        raise ConfigParseError('Неподдерживаемый формат файла.')
+        raise AppError('Неподдерживаемый формат файла.')
 
     if not tables:
-        raise ConfigParseError('Секция tables_config не найдена или не содержит таблиц.')
+        raise AppError('Секция tables_config не найдена или не содержит таблиц.')
     return tables
 
 
 def _parse_structured_tables(data: dict | None) -> list[TableConfig]:
     if not isinstance(data, dict):
-        raise ConfigParseError('Некорректная структура конфигурации.')
+        raise AppError('Некорректная структура конфигурации.')
 
     tables_config = data.get('tables_config')
     if tables_config is None:
-        raise ConfigParseError('Секция tables_config отсутствует.')
+        raise AppError('Секция tables_config отсутствует.')
 
     tables: list[TableConfig] = []
     if isinstance(tables_config, dict):
@@ -52,28 +53,28 @@ def _parse_structured_tables(data: dict | None) -> list[TableConfig]:
     elif isinstance(tables_config, list):
         iterable = tables_config
     else:
-        raise ConfigParseError('Секция tables_config должна быть словарем или списком.')
+        raise AppError('Секция tables_config должна быть словарем или списком.')
 
     for table_item in iterable:
         if not isinstance(table_item, dict):
-            raise ConfigParseError('Каждая таблица в tables_config должна быть объектом.')
+            raise AppError('Каждая таблица в tables_config должна быть объектом.')
         table_name = _normalize_text(table_item.get('table_name'))
         if not table_name:
-            raise ConfigParseError('У таблицы отсутствует имя.')
+            raise AppError('У таблицы отсутствует имя.')
         columns_raw = table_item.get('columns', [])
         if isinstance(columns_raw, dict):
             columns_raw = [{'column_code': name, **details} for name, details in columns_raw.items()]
         if not isinstance(columns_raw, list):
-            raise ConfigParseError(f'Колонки таблицы {table_name} должны быть списком или словарем.')
+            raise AppError(f'Колонки таблицы {table_name} должны быть списком или словарем.')
 
         columns: list[ColumnConfig] = []
         for column_item in columns_raw:
             if not isinstance(column_item, dict):
-                raise ConfigParseError(f'Некорректное описание колонки в таблице {table_name}.')
+                raise AppError(f'Некорректное описание колонки в таблице {table_name}.')
             column_name = _normalize_text(column_item.get('column_code'))
             db_type = _normalize_text(column_item.get('type'))
             if not column_name or not db_type:
-                raise ConfigParseError(f'Колонка в таблице {table_name} должна содержать column_code и type.')
+                raise AppError(f'Колонка в таблице {table_name} должна содержать column_code и type.')
 
             columns.append(
                 ColumnConfig(
@@ -114,7 +115,7 @@ def _parse_excel(content: bytes) -> list[TableConfig]:
             else:
                 v1_sheet = sheet
         else:
-            raise ConfigParseError('Лист tables_config не найден.')
+            raise AppError('Лист tables_config не найден.')
 
     tables: list[TableConfig] = []
 
@@ -198,7 +199,7 @@ def _parse_excel_v2_sheet(sheet) -> list[TableConfig]:
         default_col = _find_col(header_map, DEFAULT_LABELS)
 
         if code_col is None or type_col is None:
-            raise ConfigParseError(
+            raise AppError(
                 f'Для таблицы {table_name} отсутствуют заголовки кодов колонок или типов.'
             )
 
@@ -210,7 +211,7 @@ def _parse_excel_v2_sheet(sheet) -> list[TableConfig]:
 
             db_type = _cell(row, type_col)
             if not db_type:
-                raise ConfigParseError(
+                raise AppError(
                     f'У колонки {code} таблицы {table_name} не указан тип.'
                 )
 
@@ -249,7 +250,7 @@ def _find_tables_sheet(workbook):
             return sheet
     if len(workbook.worksheets) == 1:
         return workbook.worksheets[0]
-    raise ConfigParseError('Лист tables_config не найден.')
+    raise AppError('Лист tables_config не найден.')
 
 
 def _parse_excel_table_block(rows: list[list], start_index: int) -> tuple[TableConfig | None, int]:
@@ -281,7 +282,7 @@ def _parse_excel_table_block(rows: list[list], start_index: int) -> tuple[TableC
     default_row = _find_row(row_map, DEFAULT_LABELS)
 
     if not code_row or not type_row:
-        raise ConfigParseError(f'Для таблицы {table_name} отсутствуют строки с кодами колонок или типами.')
+        raise AppError(f'Для таблицы {table_name} отсутствуют строки с кодами колонок или типами.')
 
     max_len = max(
         len(code_row),
@@ -302,7 +303,7 @@ def _parse_excel_table_block(rows: list[list], start_index: int) -> tuple[TableC
         if not name:
             continue
         if not db_type:
-            raise ConfigParseError(f'У колонки {name} таблицы {table_name} не указан тип.')
+            raise AppError(f'У колонки {name} таблицы {table_name} не указан тип.')
 
         foreign_key_value = _cell(foreign_key_row, idx)
 

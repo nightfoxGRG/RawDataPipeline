@@ -4,12 +4,12 @@ from urllib.parse import quote
 
 from flask import Flask, Response, jsonify, render_template, request, send_from_directory
 
-from services.config_generator import generate_excel_config_v2
-from config.config_loader import load_config
-from config.yoyo_db_migration.db_migrate_config_at_start import run_migrations_on_start
+from src.domains.sql_generator.sql_generator_service import generate_sql_from_config
+from domains.table_config.table_config_generator_service import generate_excel_config_v2
+from src.config.config_loader import load_config
+from src.config.db_migration_yoyo.db_migrate_config_at_start import run_migrations_on_start
 from services.inferrer import ALLOWED_DATA_EXTENSIONS, infer_columns, read_data_file
-from services.models import ConfigParseError
-from api.sql_generator.sql_generator_controller import sql_generator_bp
+from common.error import AppError
 
 _CONFIG_PATH = Path(__file__).parent / 'config' / 'config.toml'
 
@@ -27,12 +27,10 @@ def create_app() -> Flask:
     _cfg = _load_config()
     # Определяем режим запуска: локальный (PyInstaller .exe/.app) или серверный
     _run_mode = 'local' if getattr(sys, 'frozen', False) else 'server'
-    _project_name = _cfg.get('app', {}).get('project_name', 'TableCreator')
+    _project_name = _cfg.get('app', {}).get('project_name', 'DataPipelinePro')
 
     # Автоматически применить миграции БД при старте
     run_migrations_on_start()
-
-    app.register_blueprint(sql_generator_bp)
 
     @app.context_processor
     def inject_globals():
@@ -42,6 +40,28 @@ def create_app() -> Flask:
     def index():
         return render_template('inferrer.html', errors=[])
 
+    @app.get('/sql_generator_from_config')
+    def get_sql_generator_from_config():
+        return render_template(
+            'index.html',
+            sql_output='',
+            errors=[],
+            add_pk=True,
+            add_package_fields=True,
+        )
+
+    @app.post('/sql_generator_from_config')
+    def post_sql_generator_from_config():
+        sql_output, errors, add_pk, add_package_fields = generate_sql_from_config(
+            request.files, request.form
+        )
+        return render_template(
+            'index.html',
+            sql_output=sql_output,
+            errors=errors,
+            add_pk=add_pk,
+            add_package_fields=add_package_fields,
+        )
 
     @app.get('/inferrer')
     def inferrer():
@@ -70,7 +90,7 @@ def create_app() -> Flask:
             table_name, headers, rows = read_data_file(content, filename)
             columns = infer_columns(headers, rows)
             xlsx_bytes = generate_excel_config_v2(table_name, columns, add_pk=add_pk, add_package_fields=add_package_fields)
-        except (ConfigParseError, Exception) as exc:
+        except (AppError, Exception) as exc:
             return jsonify(error=str(exc)), 422
 
         download_name = f'{table_name}_config.xlsm'

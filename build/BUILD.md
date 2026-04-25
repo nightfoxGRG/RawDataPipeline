@@ -22,19 +22,19 @@ pip install pyinstaller
 ## Сборка на macOS
 
 ```bash
-cd /Volumes/External_SSD/work/projects/TableCreator
+cd /Volumes/External_SSD/work/projects/DataPipelinePro
 
 # Установить зависимости (если не установлены)
 pip install -r requirements.txt
 pip install pyinstaller
 
 # Собрать
-pyinstaller TableCreator.spec
+pyinstaller DataPipelinePro.spec
 
 # Запустить
-open dist/TableCreator.app
+open dist/DataPipelinePro.app
 # или
-./dist/TableCreator
+./dist/DataPipelinePro
 ```
 
 ## Сборка на Windows

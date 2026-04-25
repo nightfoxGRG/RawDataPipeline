@@ -12,8 +12,8 @@ from services.inferrer import (
     infer_columns,
     read_data_file,
 )
-from services.config_generator import generate_excel_config_v2
-from services.models import ConfigParseError
+from domains.table_config.table_config_generator_service import generate_excel_config_v2
+from common.error import AppError
 from app import create_app
 
 
@@ -122,7 +122,7 @@ def test_read_data_file_csv():
 
 
 def test_read_data_file_unsupported_extension_raises():
-    with pytest.raises(ConfigParseError, match='Неподдерживаемый формат'):
+    with pytest.raises(AppError, match='Неподдерживаемый формат'):
         read_data_file(b'data', 'file.txt')
 
 
@@ -238,7 +238,7 @@ def test_generate_excel_config_v2_roundtrip():
 
 def test_generate_excel_config_v2_full_pipeline():
     """Full pipeline: data file → infer → generate config → re-parse with parser."""
-    from api.table_config.table_config_parser_service import parse_tables_config
+    from domains.table_config.table_config_parser_service import parse_tables_config
 
     content = _make_csv_bytes(
         ['user_id', 'username', 'score'],
