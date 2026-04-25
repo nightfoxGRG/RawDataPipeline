@@ -15,7 +15,7 @@
       <div class="sidebar-project-name">{{ project_name }}</div>
       <nav class="sidebar-nav">
         <a href="{{ url_for('inferrer') }}" class="nav-link nav-link--active">Генератор конфига</a>
-        <a href="{{ url_for('sql') }}" class="nav-link">Генератор SQL</a>
+        <a href="{{ url_for('sql_generator.get_sql_generator_from_config') }}" class="nav-link">Генератор SQL</a>
       </nav>
     </aside>
 

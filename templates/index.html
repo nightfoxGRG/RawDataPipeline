@@ -15,7 +15,7 @@
       <div class="sidebar-project-name">{{ project_name }}</div>
       <nav class="sidebar-nav">
         <a href="{{ url_for('inferrer') }}" class="nav-link">Генератор конфига</a>
-        <a href="{{ url_for('sql') }}" class="nav-link nav-link--active">Генератор SQL</a>
+        <a href="{{ url_for('sql_generator.get_sql_generator_from_config') }}" class="nav-link nav-link--active">Генератор SQL</a>
       </nav>
     </aside>
     <div class="content">
@@ -25,7 +25,7 @@
 
       <a href="{{ url_for('download_template') }}" class="btn-secondary">Скачать шаблон .xlsm</a>
 
-      <form id="sql-form" method="post" action="{{ url_for('sql') }}" enctype="multipart/form-data">
+      <form id="sql-form" method="post" action="{{ url_for('sql_generator.post_sql_generator_from_config') }}" enctype="multipart/form-data">
         <input id="config_file" name="config_file" type="file" required style="display:none"
                onchange="this.form.submit()">
         <button type="button" onclick="document.getElementById('config_file').click()">

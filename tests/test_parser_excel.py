@@ -3,7 +3,7 @@ from io import BytesIO
 import pytest
 from openpyxl import Workbook
 
-from services.parser import ConfigParseError, parse_tables_config
+from api.table_config.table_config_parser_service import ConfigParseError, parse_tables_config
 
 
 def test_parse_excel_tables_config_like_template():

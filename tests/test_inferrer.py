@@ -7,7 +7,6 @@ import pytest
 from openpyxl import Workbook
 
 from services.inferrer import (
-    ALLOWED_DATA_EXTENSIONS,
     _round_up_to_50,
     _sanitize_code,
     infer_columns,
@@ -239,7 +238,7 @@ def test_generate_excel_config_v2_roundtrip():
 
 def test_generate_excel_config_v2_full_pipeline():
     """Full pipeline: data file → infer → generate config → re-parse with parser."""
-    from services.parser import parse_tables_config
+    from api.table_config.table_config_parser_service import parse_tables_config
 
     content = _make_csv_bytes(
         ['user_id', 'username', 'score'],

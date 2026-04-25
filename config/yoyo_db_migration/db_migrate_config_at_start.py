@@ -48,9 +48,8 @@ def run_migrations_on_start() -> None:
     cfg = load_config()
     db = cfg.get('database', {})
     if not db.get('host') or not db.get('name'):
-        raise RuntimeError(
-            '[migrate] Параметры подключения к БД не заданы в config/config.toml / config/config.local.toml.'
-        )
+        print('[migrate] Параметры подключения к БД не заданы — миграции пропущены.')
+        return
 
     dsn = build_dsn(db)
     try:

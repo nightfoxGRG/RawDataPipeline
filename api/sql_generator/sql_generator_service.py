@@ -1,5 +1,9 @@
 from services.models import ColumnConfig, TableConfig
-from services.sql.pg_types import is_boolean_type, is_numeric_type, is_quoted_type, is_sql_expression
+from api.sql_generator.pg_types import is_numeric_type, is_quoted_type, is_sql_expression
+from src.util.file_util import UploadError, read_uploaded_file
+from api.table_config.table_config_parser_service import parse_tables_config
+from services.validators import validate_tables
+from services.models import ConfigParseError
 
 
 _SIZED_TYPES = {'varchar', 'character varying', 'char', 'character', 'numeric', 'decimal'}
@@ -14,6 +18,28 @@ _AUTO_PK = ColumnConfig(
 
 _PACKAGE_ID = ColumnConfig(name='package_id', db_type='varchar', nullable=False, label='Пакетный ид')
 _PACKAGE_TS = ColumnConfig(name='package_timestamp', db_type='timestamptz', nullable=False, label='Пакетный временной штамп')
+
+
+def generate_sql_from_config(files, form) -> tuple[str, list[str], bool, bool]:
+    """Обработать запрос на генерацию SQL.
+
+    Возвращает (sql_output, errors, add_pk, add_package_fields).
+    """
+    sql_output = ''
+    errors = []
+    add_pk = form.get('add_pk') == '1'
+    add_package_fields = form.get('add_package_fields') == '1'
+
+    try:
+        content, filename = read_uploaded_file(files.get('config_file'))
+        tables = parse_tables_config(content, filename)
+        errors = validate_tables(tables)
+        if not errors:
+            sql_output = generate_sql(tables, add_pk=add_pk, add_package_fields=add_package_fields)
+    except (UploadError, ConfigParseError) as exc:
+        errors.append(str(exc))
+
+    return sql_output, errors, add_pk, add_package_fields
 
 
 def generate_sql(tables: list[TableConfig], add_pk: bool = False, add_package_fields: bool = False) -> str:

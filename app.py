@@ -6,13 +6,10 @@ from flask import Flask, Response, jsonify, render_template, request, send_from_
 
 from services.config_generator import generate_excel_config_v2
 from config.config_loader import load_config
-from config.db_migrate_config_at_start import run_migrations_on_start
+from config.yoyo_db_migration.db_migrate_config_at_start import run_migrations_on_start
 from services.inferrer import ALLOWED_DATA_EXTENSIONS, infer_columns, read_data_file
 from services.models import ConfigParseError
-from services.parser import parse_tables_config
-from services.sql.sql_generator import generate_sql
-from services.upload import UploadError, read_uploaded_file
-from services.validators import validate_tables
+from api.sql_generator.sql_generator_controller import sql_generator_bp
 
 _CONFIG_PATH = Path(__file__).parent / 'config' / 'config.toml'
 
@@ -35,6 +32,8 @@ def create_app() -> Flask:
     # Автоматически применить миграции БД при старте
     run_migrations_on_start()
 
+    app.register_blueprint(sql_generator_bp)
+
     @app.context_processor
     def inject_globals():
         return {'run_mode': _run_mode, 'project_name': _project_name}
@@ -43,26 +42,6 @@ def create_app() -> Flask:
     def index():
         return render_template('inferrer.html', errors=[])
 
-    @app.route('/sql', methods=['GET', 'POST'])
-    def sql():
-        sql_output = ''
-        errors = []
-        add_pk = True
-        add_package_fields = True
-
-        if request.method == 'POST':
-            try:
-                add_pk = request.form.get('add_pk') == '1'
-                add_package_fields = request.form.get('add_package_fields') == '1'
-                content, filename = read_uploaded_file(request.files.get('config_file'))
-                tables = parse_tables_config(content, filename)
-                errors = validate_tables(tables)
-                if not errors:
-                    sql_output = generate_sql(tables, add_pk=add_pk, add_package_fields=add_package_fields)
-            except (UploadError, ConfigParseError) as exc:
-                errors.append(str(exc))
-
-        return render_template('index.html', sql_output=sql_output, errors=errors, add_pk=add_pk, add_package_fields=add_package_fields)
 
     @app.get('/inferrer')
     def inferrer():
