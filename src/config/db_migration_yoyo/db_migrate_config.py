@@ -9,8 +9,9 @@ import sys
 from pathlib import Path
 
 from config.config_loader import load_config
-from services.dbmigrate.db_migrate import build_dsn
 from yoyo import read_migrations, get_backend
+from src.config.db_migration_yoyo.db_migrate_config_at_start import build_dsn
+
 def main() -> None:
     command = sys.argv[1] if len(sys.argv) > 1 else 'apply'
     cfg = load_config()

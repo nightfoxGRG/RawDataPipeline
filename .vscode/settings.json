@@ -1,5 +1,11 @@
 {
-    "editor.fontSize": 15,
     "chat.editor.fontSize": 15,
-    "chat.fontSize": 15
+    "chat.fontSize": 15,
+    "editor.minimap.sectionHeaderFontSize": 9,
+    "debug.console.fontSize": 14,
+    "scm.inputFontSize": 14,
+    "terminal.integrated.fontSize": 14,
+    "python.analysis.extraPaths": [
+        "./src"
+    ]
 }

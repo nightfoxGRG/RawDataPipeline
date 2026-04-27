@@ -5,7 +5,7 @@ from urllib.parse import quote
 from flask import Flask, Response, jsonify, render_template, request, send_from_directory
 
 from src.domains.sql_generator.sql_generator_service import generate_sql_from_config
-from domains.table_config.table_config_generator_service import generate_excel_config_v2
+from src.domains.table_config.table_config_generator_service import generate_excel_config_v2
 from src.config.config_loader import load_config
 from src.config.db_migration_yoyo.db_migrate_config_at_start import run_migrations_on_start
 from services.inferrer import ALLOWED_DATA_EXTENSIONS, infer_columns, read_data_file

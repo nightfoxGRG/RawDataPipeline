@@ -13,6 +13,7 @@ from openpyxl import load_workbook
 
 from domains.libretranslate.libretranslate_service import _translate_to_english
 
+
 # Patterns for date / datetime detection
 _DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 _DATETIME_RE = re.compile(r'^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}')
