@@ -1,7 +1,7 @@
 import re
 
-from common.error import AppError
-from domains.table_config.table_config_model import TableConfig
+from src.common.error import AppError
+from src.domains.table_config.table_config_model import TableConfig
 from src.domains.sql_generator.postgres_types import is_boolean_type, is_numeric_type, is_sql_expression
 
 

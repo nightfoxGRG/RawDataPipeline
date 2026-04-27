@@ -4,10 +4,9 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
-from domains.table_config.table_config_model import TableConfig, ColumnConfig
-from common.error import AppError
-from domains.sql_generator.sql_generator_validator import _validate_reference_cell, _validate_yes_no_cell
-
+from src.domains.table_config.table_config_model import TableConfig, ColumnConfig
+from src.common.error import AppError
+from src.domains.sql_generator.sql_generator_validator import _validate_reference_cell, _validate_yes_no_cell
 
 TABLE_NAME_LABELS = {'наименование таблицы', 'table_name'}
 COLUMN_CODE_LABELS = {'код колонки в бд', 'column_code'}

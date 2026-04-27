@@ -3,8 +3,7 @@ from src.domains.sql_generator.postgres_types import is_numeric_type, is_quoted_
 from src.utils.file_util import UploadError, read_uploaded_file
 from src.domains.table_config.table_config_parser_service import parse_tables_config
 from src.domains.sql_generator.sql_generator_validator import validate_tables
-from common.error import AppError
-
+from src.common.error import AppError
 
 _SIZED_TYPES = {'varchar', 'character varying', 'char', 'character', 'numeric', 'decimal'}
 

@@ -11,7 +11,7 @@ from io import BytesIO, StringIO
 from pathlib import Path
 from openpyxl import load_workbook
 
-from domains.libretranslate.libretranslate_service import _translate_to_english
+from src.domains.libretranslate.libretranslate_service import _translate_to_english
 
 
 # Patterns for date / datetime detection

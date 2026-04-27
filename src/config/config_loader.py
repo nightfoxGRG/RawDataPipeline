@@ -2,9 +2,7 @@ import os
 import tomllib
 from pathlib import Path
 
-_ROOT = Path(__file__).parent  # config/ -> project root/config — configs рядом
-_CONFIG_DIR = _ROOT
-
+_CONFIG_PATH = Path(__file__).parent / 'src' / 'config'
 
 def load_config() -> dict:
     """Загрузить конфигурацию.
@@ -15,8 +13,8 @@ def load_config() -> dict:
     config.local.toml применяется только если APP_ENV=local.
     Значения из local перекрывают значения из base (deep merge).
     """
-    base_path = _CONFIG_DIR / 'config.toml'
-    local_path = _CONFIG_DIR / 'config.local.toml'
+    base_path = _CONFIG_PATH / 'config.toml'
+    local_path = _CONFIG_PATH / 'config.local.toml'
 
     cfg: dict = {}
     if base_path.exists():

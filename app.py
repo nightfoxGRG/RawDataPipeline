@@ -8,8 +8,8 @@ from src.domains.sql_generator.sql_generator_service import generate_sql_from_co
 from src.domains.table_config.table_config_generator_service import generate_excel_config_v2
 from src.config.config_loader import load_config
 from src.config.db_migration_yoyo.db_migrate_config_at_start import run_migrations_on_start
-from services.inferrer import ALLOWED_DATA_EXTENSIONS, infer_columns, read_data_file
-from common.error import AppError
+from src.inferrer import ALLOWED_DATA_EXTENSIONS, infer_columns, read_data_file
+from src.common.error import AppError
 
 _CONFIG_PATH = Path(__file__).parent / 'config' / 'config.toml'
 
