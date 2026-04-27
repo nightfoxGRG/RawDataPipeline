@@ -5,7 +5,7 @@ import requests
 
 _CONFIG_PATH = Path(__file__).parent.parent / 'config' / 'config.toml'
 
-!!!!!!! переделать  'http://127.0.0.1:50001'
+#!!!!!!! переделать  'http://127.0.0.1:50001'
 # ---------------------------------------------------------------------------
 # Load translation service URL from config/config.toml
 # ---------------------------------------------------------------------------

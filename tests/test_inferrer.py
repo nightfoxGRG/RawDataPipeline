@@ -6,14 +6,15 @@ from unittest.mock import patch, MagicMock
 import pytest
 from openpyxl import Workbook
 
+from common.error import AppError
+from domains.table_config.table_config_generator_service import generate_excel_config_v2
 from services.inferrer import (
     _round_up_to_50,
     _sanitize_code,
     infer_columns,
     read_data_file,
 )
-from domains.table_config.table_config_generator_service import generate_excel_config_v2
-from common.error import AppError
+
 from app import create_app
 
 
