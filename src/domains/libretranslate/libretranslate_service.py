@@ -1,21 +1,15 @@
 import tomllib
 import re
-from pathlib import Path
 import requests
 
-_CONFIG_PATH = Path(__file__).parent.parent / 'src' / 'config' / 'config.toml'
+from src.config.config_loader import load_config
 
-#!!!!!!! переделать  'http://127.0.0.1:50001'
 # ---------------------------------------------------------------------------
 # Load translation service URL from config/config.toml
 # ---------------------------------------------------------------------------
 def _load_libretranslate_url() -> str:
-    try:
-        with open(_CONFIG_PATH, 'rb') as _f:
-            _cfg = tomllib.load(_f)
-        return _cfg.get('translation', {}).get('libretranslate_url')
-    except Exception:
-        return 'http://127.0.0.1:50001'
+    cfg = load_config()
+    return cfg.get('translation', {}).get('libretranslate_url')
 
 LIBRETRANSLATE_URL: str = _load_libretranslate_url()
 

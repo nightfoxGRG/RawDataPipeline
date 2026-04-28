@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 from urllib.parse import quote
@@ -11,26 +12,16 @@ from src.config.db_migration_yoyo.db_migrate_config_at_start import run_migratio
 from src.inferrer import ALLOWED_DATA_EXTENSIONS, infer_columns, read_data_file
 from src.common.error import AppError
 
-_CONFIG_PATH = Path(__file__).parent / 'config' / 'config.toml'
-
-
-def _load_config() -> dict:
-    try:
-        return load_config()
-    except Exception:
-        return {}
-
-
 def create_app() -> Flask:
     app = Flask(__name__)
 
-    _cfg = _load_config()
+    cfg = load_config()
     # Определяем режим запуска: локальный (PyInstaller .exe/.app) или серверный
     _run_mode = 'local' if getattr(sys, 'frozen', False) else 'server'
-    _project_name = _cfg.get('app', {}).get('project_name', 'DataPipelinePro')
+    _project_name = cfg.get('app', {}).get('project_name', 'DataPipelinePro')
 
     # Автоматически применить миграции БД при старте
-    run_migrations_on_start()
+    run_migrations_on_start(cfg)
 
     @app.context_processor
     def inject_globals():
@@ -132,7 +123,6 @@ def create_app() -> Flask:
 
 
 app = create_app()
-
 
 if __name__ == '__main__':
     app.run(port=8080)

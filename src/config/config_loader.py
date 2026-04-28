@@ -2,19 +2,18 @@ import os
 import tomllib
 from pathlib import Path
 
-_CONFIG_PATH = Path(__file__).parent / 'src' / 'config'
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+CONFIG_PATH = os.path.join(ROOT_DIR, 'src', 'config')
 
 def load_config() -> dict:
     """Загрузить конфигурацию.
-
     Базовый файл: config/config.toml (хранится в git, без секретов)
     Локальный оверрайд: config/config.local.toml (в .gitignore, секреты)
-
     config.local.toml применяется только если APP_ENV=local.
-    Значения из local перекрывают значения из base (deep merge).
+    Значения из local перекрывают значения из base (deep merge)
     """
-    base_path = _CONFIG_PATH / 'config.toml'
-    local_path = _CONFIG_PATH / 'config.local.toml'
+    base_path = os.path.join(CONFIG_PATH, 'config.toml')
+    local_path =  os.path.join(CONFIG_PATH, 'config.local.toml')
 
     cfg: dict = {}
     if base_path.exists():
@@ -27,7 +26,7 @@ def load_config() -> dict:
         with open(local_path, 'rb') as f:
             local_cfg = tomllib.load(f)
         cfg = _deep_merge(cfg, local_cfg)
-
+    
     return cfg
 
 
