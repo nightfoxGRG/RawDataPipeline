@@ -1,17 +1,11 @@
-import os
 import sys
-from pathlib import Path
-from urllib.parse import quote
 
-from flask import Flask, Response, jsonify, render_template, request, send_from_directory
-
+from flask import Flask, Response, render_template, request, send_from_directory
 from common.project_paths import ProjectPaths
 from domains.sql_generator.sql_generator_service import generate_sql_from_config
-from domains.table_config.table_config_generator_service import generate_excel_config_v2
+from domains.table_config.table_config_generator_service import generate_table_config_from_data_file
 from config.config_loader import load_config
 from config.db_migration_yoyo.db_migrate_config_at_start import run_migrations_on_start
-from inferrer import ALLOWED_DATA_EXTENSIONS, infer_columns, read_data_file
-from common.error import AppError
 
 def create_app() -> Flask:
     app = Flask(
@@ -34,76 +28,41 @@ def create_app() -> Flask:
 
     @app.route('/', methods=['GET'])
     def index():
-        return render_template('inferrer.html', errors=[])
+        return render_template('table_config_generator.html', errors=[])
 
-    @app.get('/sql_generator_from_config')
-    def get_sql_generator_from_config():
+    @app.get('/sql_generator')
+    def get_sql_generator():
         return render_template(
-            'index.html',
+            'sql_generator.html',
             sql_output='',
             errors=[],
             add_pk=True,
             add_package_fields=True,
         )
 
-    @app.post('/sql_generator_from_config')
-    def post_sql_generator_from_config():
+    @app.post('/sql_generator')
+    def post_sql_generator():
         sql_output, errors, add_pk, add_package_fields = generate_sql_from_config(
             request.files, request.form
         )
         return render_template(
-            'index.html',
+            'sql_generator.html',
             sql_output=sql_output,
             errors=errors,
             add_pk=add_pk,
             add_package_fields=add_package_fields,
         )
 
-    @app.get('/inferrer')
-    def inferrer():
-        return render_template('inferrer.html', errors=[])
+    @app.get('/table_config_generator')
+    def get_table_config_generator():
+        return render_template('table_config_generator.html', errors=[])
 
-    @app.post('/inferrer/generate')
-    def inferrer_generate():
-        file_storage = request.files.get('data_file')
-        if file_storage is None or not file_storage.filename:
-            return jsonify(error='Не выбран файл данных.'), 400
+    @app.post('/table_config_generator')
+    def post_table_config_generator():
+        return generate_table_config_from_data_file(request)
 
-        filename = file_storage.filename
-        ext = Path(filename).suffix.lower()
-        if ext not in ALLOWED_DATA_EXTENSIONS:
-            allowed = ', '.join(sorted(ALLOWED_DATA_EXTENSIONS))
-            return jsonify(error=f'Поддерживаются только файлы: {allowed}'), 400
-
-        content = file_storage.read()
-        if not content:
-            return jsonify(error='Загруженный файл пустой.'), 400
-
-        add_pk = request.form.get('add_pk') == '1'
-        add_package_fields = request.form.get('add_package_fields') == '1'
-
-        try:
-            table_name, headers, rows = read_data_file(content, filename)
-            columns = infer_columns(headers, rows)
-            xlsx_bytes = generate_excel_config_v2(table_name, columns, add_pk=add_pk, add_package_fields=add_package_fields)
-        except (AppError, Exception) as exc:
-            return jsonify(error=str(exc)), 422
-
-        download_name = f'{table_name}_config.xlsm'
-        ascii_name = download_name.encode('ascii', 'replace').decode('ascii')
-        encoded_name = quote(download_name, encoding='utf-8')
-        return Response(
-            xlsx_bytes,
-            mimetype='application/vnd.ms-excel.sheet.macroEnabled.12',
-            headers={
-                'Content-Disposition': (
-                    f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{encoded_name}"
-                ),
-            },
-        )
-
-    @app.get('/download-template')
-    def download_template():
+    @app.get('/download_table_config_template')
+    def download_table_config_template():
         return send_from_directory(
             ProjectPaths.STATIC,
             'TablesConfig.xlsm',
@@ -111,11 +70,11 @@ def create_app() -> Flask:
             download_name='TablesConfig.xlsm',
         )
 
-    @app.post('/download')
+    @app.post('/download_sql')
     def download_sql():
         sql_content = request.form.get('sql_output', '').strip()
         if not sql_content:
-            return render_template('index.html', errors=['SQL для скачивания не найден.'])
+            return render_template('sql_generator.html', errors=['SQL для скачивания не найден.'])
 
         return Response(
             sql_content,
@@ -125,8 +84,4 @@ def create_app() -> Flask:
 
     return app
 
-
 app = create_app()
-
-if __name__ == '__main__':
-    app.run(port=8080)

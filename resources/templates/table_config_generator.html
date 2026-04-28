@@ -14,19 +14,19 @@
     <aside class="sidebar">
       <div class="sidebar-project-name">{{ project_name }}</div>
       <nav class="sidebar-nav">
-        <a href="{{ url_for('inferrer') }}" class="nav-link nav-link--active">Генератор конфига</a>
-        <a href="{{ url_for('get_sql_generator_from_config') }}" class="nav-link">Генератор SQL</a>
+        <a href="{{ url_for('get_table_config_generator') }}" class="nav-link nav-link--active">Генератор конфиг</a>
+        <a href="{{ url_for('get_sql_generator') }}" class="nav-link">Генератор SQL</a>
       </nav>
     </aside>
 
     <div class="content">
-      <h1>Генератор конфигурационного файла описания таблиц</h1>
+      <h1>Генератор конфигурационного файла БД по файлу с данными</h1>
 
       <p class="hint">
         Загрузите файл в одном из форматов: .xlsx, .xlsm, .csv.
           Первая строка должна содержать заголовки колонок.
           Система переведет названия колонок на английский, определит тип и длину каждой колонки.
-          В результате будет сформирован готовый конфигурационный файл, который можно будет скачать.
+          В результате будет сформирован готовый конфигурационный файл настройки таблиц БД, который можно будет скачать.
       </p>
 
       <!-- Скрытый input + стилизованная кнопка -->
@@ -94,7 +94,7 @@
         formData.append('add_package_fields', document.getElementById('add_package_fields').checked ? '1' : '0');
 
         try {
-          const response = await fetch('{{ url_for("inferrer_generate") }}', {
+          const response = await fetch('{{ url_for("post_table_config_generator") }}', {
             method: 'POST',
             body: formData,
           });

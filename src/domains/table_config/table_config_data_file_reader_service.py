@@ -1,4 +1,4 @@
-"""Infer PostgreSQL column types and sizes from raw data file contents.
+"""Чтение файла данных и формирование промежуточной структуры данных для последующего формирования файла конфигурации
 
 Supports reading Excel (.xlsx, .xlsm) and CSV files.
 The first row of the input file is expected to contain column headers.
@@ -13,7 +13,6 @@ from openpyxl import load_workbook
 
 from domains.libretranslate.libretranslate_service import _translate_to_english
 
-
 # Patterns for date / datetime detection
 _DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 _DATETIME_RE = re.compile(r'^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}')
@@ -21,13 +20,6 @@ _DATETIME_RE = re.compile(r'^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}')
 # Strict boolean literals recognised in data
 _BOOL_VALUES: frozenset[str] = frozenset({'true', 'false'})
 
-# Extensions accepted by the upload endpoint for this feature
-ALLOWED_DATA_EXTENSIONS = {'.xlsx', '.xlsm', '.csv'}
-
-
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
 
 def read_data_file(content: bytes, filename: str) -> tuple[str, list[str], list[list]]:
     """Parse *content* from *filename* and return (table_name, headers, rows).
@@ -203,10 +195,6 @@ def _infer_db_type(values: list) -> tuple[str, str | None]:
 # ---------------------------------------------------------------------------
 # Internal helpers — identifier sanitization
 # ---------------------------------------------------------------------------
-
-
-
-
 def _sanitize_code(name: str) -> str:
     """Convert an arbitrary column header into a valid PostgreSQL identifier.
 

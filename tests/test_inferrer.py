@@ -8,7 +8,7 @@ from openpyxl import Workbook
 
 from common.error import AppError
 from domains.table_config.table_config_generator_service import generate_excel_config_v2
-from inferrer import (
+from domains.table_config.table_config_data_file_reader_service import (
     _round_up_to_50,
     _sanitize_code,
     infer_columns,

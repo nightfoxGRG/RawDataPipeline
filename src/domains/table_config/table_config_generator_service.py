@@ -5,14 +5,58 @@ from a list of inferred column descriptors.
 import re
 import zipfile
 from io import BytesIO
+from pathlib import Path
+from urllib.parse import quote
+from flask import jsonify, Request, Response
 from openpyxl import load_workbook
+from common.error import AppError
 from common.project_paths import ProjectPaths
+from domains.table_config.table_config_data_file_reader_service import read_data_file, infer_columns
 
 _TEMPLATE_PATH = ProjectPaths.STATIC / 'TablesConfig.xlsm'
+# Extensions accepted by the upload endpoint for this feature
+ALLOWED_DATA_EXTENSIONS = {'.xlsx', '.xlsm', '.csv'}
 
 # Number of data columns in one table block (matches the template header row)
 _V2_DATA_COLS = 9
 
+def generate_table_config_from_data_file(request: Request):
+    file_storage = request.files.get('data_file')
+    if file_storage is None or not file_storage.filename:
+        return jsonify(error='Не выбран файл данных.'), 400
+
+    filename = file_storage.filename
+    ext = Path(filename).suffix.lower()
+    if ext not in ALLOWED_DATA_EXTENSIONS:
+        allowed = ', '.join(sorted(ALLOWED_DATA_EXTENSIONS))
+        return jsonify(error=f'Поддерживаются только файлы: {allowed}'), 400
+
+    content = file_storage.read()
+    if not content:
+        return jsonify(error='Загруженный файл пустой.'), 400
+
+    add_pk = request.form.get('add_pk') == '1'
+    add_package_fields = request.form.get('add_package_fields') == '1'
+
+    try:
+        table_name, headers, rows = read_data_file(content, filename)
+        columns = infer_columns(headers, rows)
+        xlsx_bytes = generate_excel_config_v2(table_name, columns, add_pk=add_pk, add_package_fields=add_package_fields)
+    except (AppError, Exception) as exc:
+        return jsonify(error=str(exc)), 422
+
+    download_name = f'{table_name}_config.xlsm'
+    ascii_name = download_name.encode('ascii', 'replace').decode('ascii')
+    encoded_name = quote(download_name, encoding='utf-8')
+    return Response(
+        xlsx_bytes,
+        mimetype='application/vnd.ms-excel.sheet.macroEnabled.12',
+        headers={
+            'Content-Disposition': (
+                f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{encoded_name}"
+            ),
+        },
+    )
 
 def _sheet_name_to_zip_path(workbook_xml: str, rels_xml: str) -> dict[str, str]:
     """Return {sheet_name: zip_entry_path} parsed from workbook.xml and its .rels.
