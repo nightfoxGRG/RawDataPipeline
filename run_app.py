@@ -22,13 +22,13 @@ def open_browser():
 if __name__ == '__main__':
     # Указываем Flask где искать templates и static внутри .exe
     os.environ['FLASK_TEMPLATE_FOLDER'] = resource_path('templates')
-    os.environ['FLASK_STATIC_FOLDER'] = resource_path('static')
+    os.environ['FLASK_STATIC_FOLDER'] = resource_path('resources/static')
 
     from app import create_app
 
     flask_app = create_app()
     flask_app.template_folder = resource_path('templates')
-    flask_app.static_folder = resource_path('static')
+    flask_app.static_folder = resource_path('resources/static')
 
     # Открываем браузер через 1.5 секунды после старта
     threading.Timer(1.5, open_browser).start()

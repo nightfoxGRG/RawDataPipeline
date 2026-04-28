@@ -5,15 +5,20 @@ from urllib.parse import quote
 
 from flask import Flask, Response, jsonify, render_template, request, send_from_directory
 
-from src.domains.sql_generator.sql_generator_service import generate_sql_from_config
-from src.domains.table_config.table_config_generator_service import generate_excel_config_v2
-from src.config.config_loader import load_config
-from src.config.db_migration_yoyo.db_migrate_config_at_start import run_migrations_on_start
-from src.inferrer import ALLOWED_DATA_EXTENSIONS, infer_columns, read_data_file
-from src.common.error import AppError
+from common.project_paths import ProjectPaths
+from domains.sql_generator.sql_generator_service import generate_sql_from_config
+from domains.table_config.table_config_generator_service import generate_excel_config_v2
+from config.config_loader import load_config
+from config.db_migration_yoyo.db_migrate_config_at_start import run_migrations_on_start
+from inferrer import ALLOWED_DATA_EXTENSIONS, infer_columns, read_data_file
+from common.error import AppError
 
 def create_app() -> Flask:
-    app = Flask(__name__)
+    app = Flask(
+        __name__,
+        template_folder=str(ProjectPaths.TEMPLATES),  # папка с шаблонами
+        static_folder=str(ProjectPaths.STATIC)  # папка со статикой (если есть)
+    )
 
     cfg = load_config()
     # Определяем режим запуска: локальный (PyInstaller .exe/.app) или серверный
@@ -99,9 +104,8 @@ def create_app() -> Flask:
 
     @app.get('/download-template')
     def download_template():
-        static_dir = Path(app.root_path) / 'static'
         return send_from_directory(
-            static_dir,
+            ProjectPaths.STATIC,
             'TablesConfig.xlsm',
             as_attachment=True,
             download_name='TablesConfig.xlsm',

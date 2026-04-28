@@ -1,12 +1,12 @@
 """Автоматическое применение миграций БД при старте приложения."""
 
 import traceback
-from pathlib import Path
 
 import psycopg2
 from yoyo import get_backend, read_migrations
 
-_MIGRATIONS_DIR = str(Path(__file__).parent.parent.parent / 'migrations')
+from common.project_paths import ProjectPaths
+
 _MIGRATE_SCHEMA = 'system'
 _MIGRATION_TABLE = '_yoyo_migration'
 
@@ -55,7 +55,11 @@ def run_migrations_on_start(cfg: dict) -> None:
         # Схема system должна существовать до инициализации yoyo
         _ensure_system_schema(db)
 
-        migrations = read_migrations(_MIGRATIONS_DIR)
+        # Преобразуем Path в строку
+        migrations_path = str(ProjectPaths.MIGRATIONS)
+        print(f'[migrate] Путь к миграциям: {migrations_path}')
+
+        migrations = read_migrations(migrations_path)
         backend = get_backend(
             dsn,
             migration_table=_MIGRATION_TABLE,

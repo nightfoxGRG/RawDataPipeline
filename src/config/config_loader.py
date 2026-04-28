@@ -1,9 +1,7 @@
 import os
 import tomllib
-from pathlib import Path
 
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-CONFIG_PATH = os.path.join(ROOT_DIR, 'src', 'config')
+from common.project_paths import ProjectPaths
 
 def load_config() -> dict:
     """Загрузить конфигурацию.
@@ -12,20 +10,25 @@ def load_config() -> dict:
     config.local.toml применяется только если APP_ENV=local.
     Значения из local перекрывают значения из base (deep merge)
     """
-    base_path = os.path.join(CONFIG_PATH, 'config.toml')
-    local_path =  os.path.join(CONFIG_PATH, 'config.local.toml')
+    base_path =  ProjectPaths.CONFIG /  'config.toml'
+    local_path =  ProjectPaths.CONFIG / 'config.local.toml'
 
     cfg: dict = {}
     if base_path.exists():
         with open(base_path, 'rb') as f:
             cfg = tomllib.load(f)
+    else: 
+        raise RuntimeError(f"Не найден конфигурационный файл: {base_path.absolute}")
 
     app_env = os.getenv('APP_ENV', '').lower()
-    # config.local.toml загружается всегда если существует (APP_ENV=local оставлен для обратной совместимости)
-    if local_path.exists() and (app_env == 'local'):
-        with open(local_path, 'rb') as f:
-            local_cfg = tomllib.load(f)
-        cfg = _deep_merge(cfg, local_cfg)
+
+    if app_env == 'local':
+        if local_path.exists():
+            with open(local_path, 'rb') as f:
+                local_cfg = tomllib.load(f)
+            cfg = _deep_merge(cfg, local_cfg)
+        else: 
+            raise RuntimeError(f"Не найден локальный конфигурационный файл: {local_path.absolute}")
     
     return cfg
 

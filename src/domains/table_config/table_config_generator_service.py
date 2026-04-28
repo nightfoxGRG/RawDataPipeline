@@ -5,12 +5,10 @@ from a list of inferred column descriptors.
 import re
 import zipfile
 from io import BytesIO
-from pathlib import Path
-
 from openpyxl import load_workbook
+from common.project_paths import ProjectPaths
 
-
-_TEMPLATE_PATH = Path(__file__).parent.parent / 'static' / 'TablesConfig.xlsm'
+_TEMPLATE_PATH = ProjectPaths.STATIC / 'TablesConfig.xlsm'
 
 # Number of data columns in one table block (matches the template header row)
 _V2_DATA_COLS = 9

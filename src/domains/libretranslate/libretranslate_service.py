@@ -1,8 +1,7 @@
-import tomllib
 import re
 import requests
 
-from src.config.config_loader import load_config
+from config.config_loader import load_config
 
 # ---------------------------------------------------------------------------
 # Load translation service URL from config/config.toml
