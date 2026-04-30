@@ -3,6 +3,7 @@ __pycache__/
 .pytest_cache/
 .venv/
 .venv2/
+.vscode/
 # Локальный конфиг с секретами — не коммитить
 /.idea/.name
 /src/config/config.local.toml
