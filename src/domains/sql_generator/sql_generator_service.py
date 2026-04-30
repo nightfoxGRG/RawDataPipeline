@@ -13,7 +13,7 @@ _AUTO_PK = ColumnConfig(
     nullable=False,
     primary_key=True,
     label='Ид',
-)
+)   
 
 _PACKAGE_ID = ColumnConfig(name='package_id', db_type='varchar', nullable=False, label='Пакетный ид')
 _PACKAGE_TS = ColumnConfig(name='package_timestamp', db_type='timestamptz', nullable=False, label='Пакетный временной штамп')

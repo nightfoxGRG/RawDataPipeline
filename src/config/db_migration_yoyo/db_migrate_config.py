@@ -8,13 +8,13 @@
 import sys
 from pathlib import Path
 
-from config.config_loader import load_config
+from config.config_loader import get_config
 from yoyo import read_migrations, get_backend
 from config.db_migration_yoyo.db_migrate_config_at_start import build_dsn
 
 def main() -> None:
     command = sys.argv[1] if len(sys.argv) > 1 else 'apply'
-    cfg = load_config()
+    cfg = get_config()
     dsn = build_dsn(cfg.get('database', {}))
     migrations_dir = str(Path(__file__).parent / 'migrations')
     migrations = read_migrations(migrations_dir)

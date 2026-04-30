@@ -1,11 +1,14 @@
+#app.py
 import sys
 
 from flask import Flask, Response, render_template, request, send_from_directory
 from common.project_paths import ProjectPaths
 from domains.sql_generator.sql_generator_service import generate_sql_from_config
 from domains.table_config.table_config_generator_service import generate_table_config_from_data_file
-from config.config_loader import load_config
+from config.config_loader import get_config
 from config.db_migration_yoyo.db_migrate_config_at_start import run_migrations_on_start
+
+_SYSTEM_SCHEMA = 'system'
 
 def create_app() -> Flask:
     app = Flask(
@@ -14,13 +17,13 @@ def create_app() -> Flask:
         static_folder=str(ProjectPaths.STATIC)  # папка со статикой (если есть)
     )
 
-    cfg = load_config()
+    cfg = get_config()
     # Определяем режим запуска: локальный (PyInstaller .exe/.app) или серверный
     _run_mode = 'local' if getattr(sys, 'frozen', False) else 'server'
     _project_name = cfg.get('app', {}).get('project_name', 'DataPipelinePro')
 
     # Автоматически применить миграции БД при старте
-    run_migrations_on_start(cfg)
+    run_migrations_on_start()
 
     @app.context_processor
     def inject_globals():
@@ -28,12 +31,12 @@ def create_app() -> Flask:
 
     @app.route('/', methods=['GET'])
     def index():
-        return render_template('table_config_generator.html', errors=[])
+        return render_template('configurator.html', errors=[])
 
-    @app.get('/sql_generator')
-    def get_sql_generator():
+    @app.get('/generator')
+    def get_generator():
         return render_template(
-            'sql_generator.html',
+            'generator.html',
             sql_output='',
             errors=[],
             add_pk=True,
@@ -46,16 +49,16 @@ def create_app() -> Flask:
             request.files, request.form
         )
         return render_template(
-            'sql_generator.html',
+            'generator.html',
             sql_output=sql_output,
             errors=errors,
             add_pk=add_pk,
             add_package_fields=add_package_fields,
         )
 
-    @app.get('/table_config_generator')
-    def get_table_config_generator():
-        return render_template('table_config_generator.html', errors=[])
+    @app.get('/configurator')
+    def get_configurator():
+        return render_template('configurator.html', errors=[])
 
     @app.post('/table_config_generator')
     def post_table_config_generator():
@@ -74,7 +77,7 @@ def create_app() -> Flask:
     def download_sql():
         sql_content = request.form.get('sql_output', '').strip()
         if not sql_content:
-            return render_template('sql_generator.html', errors=['SQL для скачивания не найден.'])
+            return render_template('generator.html', errors=['SQL для скачивания не найден.'])
 
         return Response(
             sql_content,
