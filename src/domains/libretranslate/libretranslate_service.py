@@ -29,12 +29,8 @@ def _translate_to_english(name: str) -> str:
 
     payload = {'q': name, 'source': 'ru', 'target': 'en', 'format': 'text', 'api_key': ""}
   
-    session = requests.Session()
-    session.trust_env = False
-    session.proxies = {'http': None, 'https': None}
-
     try:
-        response = session.post(f'{url}/translate', json=payload, timeout=5)
+        response = requests.post(f'{url}/translate', json=payload, timeout=5)
         if response.status_code == 403:
             raise AppError(
                 f'Сервис перевода ({url}) вернул 403: требуется API-ключ. '
