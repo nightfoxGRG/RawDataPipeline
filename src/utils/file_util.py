@@ -1,22 +1,17 @@
+from pathlib import Path
+
 from werkzeug.datastructures import FileStorage
 
+from common.error import UploadError
 
-class UploadError(ValueError):
-    """Raised when uploaded file is invalid."""
-
-
-ALLOWED_EXTENSIONS = {'.xlsx', '.xlsm', '.json'}
-
-
-def read_uploaded_file(file_storage: FileStorage | None) -> tuple[bytes, str]:
+def read_uploaded_file(file_storage: FileStorage | None, allowed_extensions: set[str]) -> tuple[bytes, str]:
     if file_storage is None or not file_storage.filename:
         raise UploadError('Не выбран файл конфигурации.')
 
     filename = file_storage.filename
-    dot_position = filename.rfind('.')
-    extension = filename[dot_position:].lower() if dot_position != -1 else ''
-    if extension not in ALLOWED_EXTENSIONS:
-        allowed = ', '.join(sorted(ALLOWED_EXTENSIONS))
+    extension = Path(filename).suffix.lower()
+    if extension not in allowed_extensions:
+        allowed = ', '.join(sorted(allowed_extensions))
         raise UploadError(f'Поддерживаются только файлы: {allowed}')
 
     content = file_storage.read()

@@ -11,13 +11,8 @@
       {% if run_mode == 'local' %}локальный режим{% else %}серверный режим{% endif %}
     </div>
 
-    <aside class="sidebar">
-      <div class="sidebar-project-name">{{ project_name }}</div>
-      <nav class="sidebar-nav">
-        <a href="{{ url_for('get_configurator') }}" class="nav-link">Конфигуратор</a>
-        <a href="{{ url_for('get_generator') }}" class="nav-link nav-link--active">Генератор</a>
-      </nav>
-    </aside>
+    {% set active_page = 'generator' %}
+    {% include '_menu.html' %}
     <div class="content">
       <div class="page-header">
         <h1>Генератор SQL-запросов CREATE TABLE на основе конфигурационного файла</h1>

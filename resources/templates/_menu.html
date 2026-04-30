@@ -1,0 +1,7 @@
+<aside class="sidebar">
+  <div class="sidebar-project-name">{{ project_name }}</div>
+  <nav class="sidebar-nav">
+    <a href="{{ url_for('get_configurator') }}" class="nav-link{% if active_page == 'configurator' %} nav-link--active{% endif %}">Конфигуратор</a>
+    <a href="{{ url_for('get_generator') }}" class="nav-link{% if active_page == 'generator' %} nav-link--active{% endif %}">Генератор</a>
+  </nav>
+</aside>

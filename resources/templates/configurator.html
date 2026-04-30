@@ -11,13 +11,8 @@
       {% if run_mode == 'local' %}локальный режим{% else %}серверный режим{% endif %}
     </div>
 
-    <aside class="sidebar">
-      <div class="sidebar-project-name">{{ project_name }}</div>
-      <nav class="sidebar-nav">
-        <a href="{{ url_for('get_configurator') }}" class="nav-link nav-link--active">Конфигуратор</a>
-        <a href="{{ url_for('get_generator') }}" class="nav-link">Генератор</a>
-      </nav>
-    </aside>
+    {% set active_page = 'configurator' %}
+    {% include '_menu.html' %}
 
     <div class="content">
       <h1>Генератор конфигурационного файла БД по файлу с данными</h1>
@@ -97,14 +92,16 @@
           const response = await fetch('{{ url_for("post_table_config_generator") }}', {
             method: 'POST',
             body: formData,
+            headers: { 'Accept': 'application/json' },
           });
 
           const contentType = response.headers.get('Content-Type') || '';
 
           if (contentType.includes('json')) {
-            // Сервер вернул JSON с ошибкой
+            // Сервер вернул JSON со списком ошибок
             const data = await response.json();
-            showError(data.error || 'Неизвестная ошибка');
+            const messages = Array.isArray(data.errors) ? data.errors : [data.error || 'Неизвестная ошибка'];
+            showError(messages.join('\n'));
           } else {
             // Успех — получаем файл
             const blob = await response.blob();

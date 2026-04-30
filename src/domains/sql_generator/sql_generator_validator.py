@@ -1,6 +1,6 @@
 import re
 
-from common.error import AppError
+from common.error import AppError, ValidationError
 from domains.table_config.table_config_model import TableConfig
 from domains.sql_generator.postgres_types import is_boolean_type, is_numeric_type, is_sql_expression
 
@@ -24,7 +24,8 @@ _POSTGRES_RESERVED_WORDS = {
 }
 
 
-def validate_tables(tables: list[TableConfig]) -> list[str]:
+def validate_tables(tables: list[TableConfig]) -> None:
+    """Проверить таблицы и при наличии проблем выбросить ValidationError со списком ошибок."""
     errors: list[str] = []
 
     table_name_map: dict[str, int] = {}
@@ -56,7 +57,8 @@ def validate_tables(tables: list[TableConfig]) -> list[str]:
     for duplicated_table in duplicated_tables:
         errors.append(f'Найден дубликат таблицы: {duplicated_table}.')
 
-    return errors
+    if errors:
+        raise ValidationError(errors=errors)
 
 
 def _validate_identifier(entity: str, value: str, errors: list[str]) -> None:

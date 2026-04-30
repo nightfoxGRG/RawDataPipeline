@@ -6,12 +6,11 @@ The first row of the input file is expected to contain column headers.
 
 import csv
 import re
-
 from io import BytesIO, StringIO
 from pathlib import Path
 from openpyxl import load_workbook
-
 from domains.libretranslate.libretranslate_service import _translate_to_english
+
 
 # Patterns for date / datetime detection
 _DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
@@ -19,7 +18,7 @@ _DATETIME_RE = re.compile(r'^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}')
 
 # Strict boolean literals recognised in data
 _BOOL_VALUES: frozenset[str] = frozenset({'true', 'false'})
-
+ALLOWED_DATA_EXTENSIONS = {'.xlsx', '.xlsm', '.csv'}
 
 def read_data_file(content: bytes, filename: str) -> tuple[str, list[str], list[list]]:
     """Parse *content* from *filename* and return (table_name, headers, rows).

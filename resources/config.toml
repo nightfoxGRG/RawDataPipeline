@@ -16,3 +16,6 @@ password = ""
 # to English SQL identifiers. Change this value before starting the application
 # if the service is running on a different host or port.
 libretranslate_url = "http://127.0.0.1:50001"
+# API key required if LibreTranslate is started with --api-keys flag.
+# Leave empty if the service allows unauthenticated access.
+api_key = ""

@@ -11,6 +11,9 @@ services:
     command: --load-only en,ru    # Ограничение при запуске
     environment:
       - LT_UPDATE_MODELS=false    # Запрет обновлений
+      - LT_REQUIRE_API_KEY_ORIGIN=false
+      - LT_API_KEYS=false
+      - REQUIRE_API_KEY=false
     user: "0:0"  # Запуск от root
     security_opt:
       - label:disable  # Для некоторых систем

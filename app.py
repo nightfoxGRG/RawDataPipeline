@@ -2,6 +2,8 @@
 import sys
 
 from flask import Flask, Response, render_template, request, send_from_directory
+from common.error import AppError
+from common.error_handler import register_error_handlers
 from common.project_paths import ProjectPaths
 from domains.sql_generator.sql_generator_service import generate_sql_from_config
 from domains.table_config.table_config_generator_service import generate_table_config_from_data_file
@@ -25,40 +27,40 @@ def create_app() -> Flask:
     # Автоматически применить миграции БД при старте
     run_migrations_on_start()
 
+    register_error_handlers(app)
+
     @app.context_processor
     def inject_globals():
         return {'run_mode': _run_mode, 'project_name': _project_name}
 
     @app.route('/', methods=['GET'])
     def index():
-        return render_template('configurator.html', errors=[])
+        return render_template('configurator.html')
 
     @app.get('/generator')
     def get_generator():
         return render_template(
             'generator.html',
             sql_output='',
-            errors=[],
             add_pk=True,
             add_package_fields=True,
         )
 
     @app.post('/sql_generator')
     def post_sql_generator():
-        sql_output, errors, add_pk, add_package_fields = generate_sql_from_config(
+        sql_output, add_pk, add_package_fields = generate_sql_from_config(
             request.files, request.form
         )
         return render_template(
             'generator.html',
             sql_output=sql_output,
-            errors=errors,
             add_pk=add_pk,
             add_package_fields=add_package_fields,
         )
 
     @app.get('/configurator')
     def get_configurator():
-        return render_template('configurator.html', errors=[])
+        return render_template('configurator.html')
 
     @app.post('/table_config_generator')
     def post_table_config_generator():
@@ -77,7 +79,7 @@ def create_app() -> Flask:
     def download_sql():
         sql_content = request.form.get('sql_output', '').strip()
         if not sql_content:
-            return render_template('generator.html', errors=['SQL для скачивания не найден.'])
+            raise AppError('SQL для скачивания не найден.')
 
         return Response(
             sql_content,
@@ -88,3 +90,6 @@ def create_app() -> Flask:
     return app
 
 app = create_app()
+
+if __name__ == '__main__':
+    app.run(host='127.0.0.1', port=8080, debug=True, use_reloader=False)
