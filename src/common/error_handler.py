@@ -12,7 +12,6 @@ from common.error import AppError
 
 _DEFAULT_STATUS = 422
 
-
 def register_error_handlers(app: Flask) -> None:
     @app.errorhandler(AppError)
     def _handle_app_error(exc: AppError):

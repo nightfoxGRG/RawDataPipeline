@@ -1,0 +1,40 @@
+# --- Зависимости и окружение ---
+node_modules/
+venv/
+.venv/
+miniconda*/
+__pycache__/
+*.pyc
+
+# --- Git и система ---
+.git/
+.DS_Store
+**/__MACOSX/**
+
+# --- Логи и временные файлы ---
+*.log
+*.tmp
+.cache/
+
+# --- Секреты и конфиги (Важно для безопасности!) [citation:9]---
+.env
+*.key
+secrets/
+
+# --- Артефакты сборки ---
+dist/
+build/
+*.egg-info/
+
+# --- Папки с большими данными (экономия токенов) ---
+work/
+data/
+results/
+
+# --- Сам .claude (не нужно читать [citation:8])---
+.claude/
+
+.idea/
+.pytest_cache/
+.vscode/
+.build/
