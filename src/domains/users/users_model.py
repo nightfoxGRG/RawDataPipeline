@@ -8,13 +8,13 @@ from sqlalchemy.orm import Mapped, mapped_column
 from config.db_orm_sqlalchemy.db_base_config import Base
 
 
-class User(Base):
+class Users(Base):
     """Пользователь системы.
 
     Таблица: "user" (имя в кавычках, т.к. user — зарезервированное слово PostgreSQL).
     """
 
-    __tablename__ = 'user'
+    __tablename__ = 'users'
     # Имя таблицы — зарезервированное слово, нужно цитировать
     __table_args__ = {'quote': True}
 
