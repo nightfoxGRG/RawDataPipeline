@@ -16,3 +16,4 @@ __pycache__/
 /.idea/sqldialects.xml
 /.idea/vcs.xml
 /.vscode/
+.vscode/settings.json
