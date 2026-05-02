@@ -24,7 +24,7 @@ create table db_setting
 (
     id         bigserial primary key,
     user_id    bigint       not null references users (id),
-    bd_label   varchar(100) not null,
+    db_label   varchar(100) not null,
     host       text         not null,
     port       int          not null,
     name       text         not null,
@@ -33,7 +33,7 @@ create table db_setting
     created_at timestamptz  not null default now(),
     created_by bigint       not null references users (id),
     updated_at timestamptz,
-    updated_by bigint       not null references users (id)
+    updated_by bigint references users (id)
 );
 
 create table project
@@ -45,7 +45,7 @@ create table project
     created_at  timestamptz  not null default now(),
     created_by  bigint       not null references users (id),
     updated_at  timestamptz,
-    updated_by  bigint       not null references users (id),
+    updated_by  bigint references users (id),
 
     -- Запрещаем зарезервированные имена
     constraint project_schema_forbidden check (
@@ -57,7 +57,9 @@ create table user_setting
 (
     user_id              bigint primary key not null references users (id),
     actual_project_id    bigint references project (id),
-    actual_dv_setting_id bigint references db_setting (id),
+    actual_db_setting_id bigint references db_setting (id),
     created_at           timestamptz        not null default now(),
-    updated_at           timestamptz
+    created_by           bigint             not null references users (id),
+    updated_at           timestamptz,
+    updated_by           bigint references users (id)
 );

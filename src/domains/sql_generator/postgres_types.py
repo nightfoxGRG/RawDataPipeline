@@ -1,3 +1,4 @@
+# postgres_types.py
 """PostgreSQL type categorization helpers used by validators and sql_generator."""
 
 _NUMERIC_BASE_TYPES: frozenset[str] = frozenset({

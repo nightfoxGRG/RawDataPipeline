@@ -1,3 +1,4 @@
+# db_migrate_config.py
 """
 Запуск миграций БД через yoyo-migrations.
 Использование:

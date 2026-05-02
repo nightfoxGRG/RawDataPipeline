@@ -1,3 +1,4 @@
+# db_base_config.py
 """Declarative Base для всех моделей SQLAlchemy."""
 from sqlalchemy.orm import DeclarativeBase
 

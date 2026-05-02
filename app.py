@@ -5,12 +5,24 @@ from flask import Flask, Response, render_template, request, send_from_directory
 from common.error import AppError
 from common.error_handler import register_error_handlers
 from common.project_paths import ProjectPaths
-from domains.sql_generator.sql_generator_service import generate_sql_from_config
-from domains.table_config.table_config_generator_service import generate_table_config_from_data_file
+from domains.libretranslate.libretranslate_service import LibreTranslateService
+from domains.sql_generator.sql_generator_service import SqlGeneratorService
+from domains.sql_generator.sql_generator_validator import SqlGeneratorValidator
+from domains.table_config.table_config_data_file_reader_service import TableConfigDataFileReaderService
+from domains.table_config.table_config_generator_service import TableConfigGeneratorService
+from domains.table_config.table_config_parser_service import TableConfigParserService
 from config.config_loader import get_config
 from config.db_migration_yoyo.db_migrate_config_at_start import run_migrations_on_start
 
 _SYSTEM_SCHEMA = 'system'
+
+_libretranslate = LibreTranslateService()
+_validator = SqlGeneratorValidator()
+_reader = TableConfigDataFileReaderService(libretranslate=_libretranslate)
+_parser = TableConfigParserService(validator=_validator)
+_sql_generator = SqlGeneratorService(parser=_parser, validator=_validator)
+_table_config_generator = TableConfigGeneratorService(reader=_reader)
+
 
 def create_app() -> Flask:
     app = Flask(
@@ -24,8 +36,9 @@ def create_app() -> Flask:
     _run_mode = 'local' if getattr(sys, 'frozen', False) else 'server'
     _project_name = cfg.get('app', {}).get('project_name', 'DataPipelinePro')
 
-    # Автоматически применить миграции БД при старте
-    run_migrations_on_start()
+    import os
+    if not os.environ.get('FLASK_TESTING'):
+        run_migrations_on_start()
 
     register_error_handlers(app)
 
@@ -48,7 +61,7 @@ def create_app() -> Flask:
 
     @app.post('/sql_generator')
     def post_sql_generator():
-        sql_output, add_pk, add_package_fields = generate_sql_from_config(
+        sql_output, add_pk, add_package_fields = _sql_generator.generate_sql_from_config(
             request.files, request.form
         )
         return render_template(
@@ -64,7 +77,7 @@ def create_app() -> Flask:
 
     @app.post('/table_config_generator')
     def post_table_config_generator():
-        return generate_table_config_from_data_file(request)
+        return _table_config_generator.generate_table_config_from_data_file(request)
 
     @app.get('/download_table_config_template')
     def download_table_config_template():

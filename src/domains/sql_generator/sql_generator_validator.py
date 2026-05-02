@@ -1,14 +1,13 @@
+# sql_generator_validator.py
 import re
 
 from common.error import AppError, ValidationError
 from domains.table_config.table_config_model import TableConfig
 from domains.sql_generator.postgres_types import is_boolean_type, is_numeric_type, is_sql_expression
 
-
 _IDENTIFIER_PATTERN = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')
 _REFERENCE_PATTERN = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*\([A-Za-z_][A-Za-z0-9_]*\)$')
 
-# subset of PostgreSQL keywords frequently causing naming conflicts
 _POSTGRES_RESERVED_WORDS = {
     'ALL', 'ANALYSE', 'ANALYZE', 'AND', 'ANY', 'ARRAY', 'AS', 'ASC', 'ASYMMETRIC',
     'AUTHORIZATION', 'BINARY', 'BOTH', 'CASE', 'CAST', 'CHECK', 'COLLATE', 'COLUMN',
@@ -24,112 +23,102 @@ _POSTGRES_RESERVED_WORDS = {
 }
 
 
-def validate_tables(tables: list[TableConfig]) -> None:
-    """Проверить таблицы и при наличии проблем выбросить ValidationError со списком ошибок."""
-    errors: list[str] = []
+class SqlGeneratorValidator:
 
-    table_name_map: dict[str, int] = {}
-    for table in tables:
-        _validate_identifier('Таблица', table.name, errors)
-        if not table.columns:
-            errors.append(f'Таблица {table.name} не содержит колонок.')
+    def validate_tables(self, tables: list[TableConfig]) -> None:
+        """Проверить таблицы и при наличии проблем выбросить ValidationError со списком ошибок."""
+        errors: list[str] = []
 
-        table_key = table.name.lower()
-        table_name_map[table_key] = table_name_map.get(table_key, 0) + 1
+        table_name_map: dict[str, int] = {}
+        for table in tables:
+            self._validate_identifier('Таблица', table.name, errors)
+            if not table.columns:
+                errors.append(f'Таблица {table.name} не содержит колонок.')
 
-        column_name_map: dict[str, int] = {}
-        for column in table.columns:
-            _validate_identifier(f'Колонка {table.name}', column.name, errors)
-            column_key = column.name.lower()
-            column_name_map[column_key] = column_name_map.get(column_key, 0) + 1
+            table_key = table.name.lower()
+            table_name_map[table_key] = table_name_map.get(table_key, 0) + 1
 
-            if column.foreign_key:
-                _validate_reference(column.foreign_key, table.name, column.name, errors)
+            column_name_map: dict[str, int] = {}
+            for column in table.columns:
+                self._validate_identifier(f'Колонка {table.name}', column.name, errors)
+                column_key = column.name.lower()
+                column_name_map[column_key] = column_name_map.get(column_key, 0) + 1
 
-            if column.default is not None:
-                _validate_default_value(column.default, column.db_type, column.name, table.name, errors)
+                if column.foreign_key:
+                    self._validate_reference(column.foreign_key, table.name, column.name, errors)
+                if column.default is not None:
+                    self._validate_default_value(column.default, column.db_type, column.name, table.name, errors)
 
-        duplicated_columns = sorted(name for name, count in column_name_map.items() if count > 1)
-        for duplicated_column in duplicated_columns:
-            errors.append(f'В таблице {table.name} найден дубликат колонки: {duplicated_column}.')
+            for name in sorted(n for n, c in column_name_map.items() if c > 1):
+                errors.append(f'В таблице {table.name} найден дубликат колонки: {name}.')
 
-    duplicated_tables = sorted(name for name, count in table_name_map.items() if count > 1)
-    for duplicated_table in duplicated_tables:
-        errors.append(f'Найден дубликат таблицы: {duplicated_table}.')
+        for name in sorted(n for n, c in table_name_map.items() if c > 1):
+            errors.append(f'Найден дубликат таблицы: {name}.')
 
-    if errors:
-        raise ValidationError(errors=errors)
+        if errors:
+            raise ValidationError(errors=errors)
 
-
-def _validate_identifier(entity: str, value: str, errors: list[str]) -> None:
-    if not _IDENTIFIER_PATTERN.match(value):
-        errors.append(
-            f'{entity} "{value}" содержит недопустимые символы. '
-            'Разрешены только латиница, цифры и _, первый символ — буква или _.'
-        )
-    if value.upper() in _POSTGRES_RESERVED_WORDS:
-        errors.append(f'{entity} "{value}" использует зарезервированное слово PostgreSQL.')
-
-
-def _validate_reference(reference: str, table_name: str, column_name: str, errors: list[str]) -> None:
-    if '(' not in reference or not reference.endswith(')'):
-        errors.append(
-            f'Некорректная ссылка в {table_name}.{column_name}: "{reference}". '
-            'Ожидается формат table(column).'
-        )
-        return
-
-    ref_table, ref_column_part = reference.split('(', 1)
-    ref_column = ref_column_part[:-1]
-    if not ref_table or not ref_column:
-        errors.append(
-            f'Некорректная ссылка в {table_name}.{column_name}: "{reference}". '
-            'Ожидается формат table(column).'
-        )
-        return
-
-    _validate_identifier('Таблица (FK)', ref_table, errors)
-    _validate_identifier('Колонка (FK)', ref_column, errors)
-
-
-def _validate_default_value(default: str, db_type: str, column: str, table: str, errors: list[str]) -> None:
-    """Validate that *default* is a legal literal for the given PostgreSQL *db_type*."""
-    if is_sql_expression(default):
-        return  # NULL, TRUE/FALSE, function calls and SQL constants are always valid
-
-    if is_boolean_type(db_type):
-        errors.append(
-            f'Колонка {column} таблицы {table}: значение по умолчанию "{default}" '
-            f'некорректно для типа {db_type}. '
-            'Допустимы только SQL-константы: true, false, null.'
-        )
-        return
-
-    if is_numeric_type(db_type):
-        try:
-            float(default)
-        except ValueError:
-            errors.append(
-                f'Колонка {column} таблицы {table}: значение по умолчанию "{default}" '
-                f'не является допустимым числом для типа {db_type}.'
+    def validate_yes_no_cell(self, value: str | None, field: str, column: str, table: str) -> None:
+        if value is None:
+            return
+        if value.lower() not in {'да', 'нет'}:
+            raise AppError(
+                f'Колонка {column} таблицы {table}: поле "{field}" содержит недопустимое значение '
+                f'"{value}". Допустимы только "да", "нет" или пустое значение.'
             )
 
+    def validate_reference_cell(self, value: str | None, column: str, table: str) -> None:
+        if value is None:
+            return
+        if not _REFERENCE_PATTERN.match(value):
+            raise AppError(
+                f'Колонка {column} таблицы {table}: некорректный формат ссылки '
+                f'"{value}". Ожидается формат table(column).'
+            )
 
-def _validate_yes_no_cell(value: str | None, field: str, column: str, table: str) -> None:
-    if value is None:
-        return
-    if value.lower() not in {'да', 'нет'}:
-        raise AppError(
-            f'Колонка {column} таблицы {table}: поле "{field}" содержит недопустимое значение '
-            f'"{value}". Допустимы только "да", "нет" или пустое значение.'
-        )
+    def _validate_identifier(self, entity: str, value: str, errors: list[str]) -> None:
+        if not _IDENTIFIER_PATTERN.match(value):
+            errors.append(
+                f'{entity} "{value}" содержит недопустимые символы. '
+                'Разрешены только латиница, цифры и _, первый символ — буква или _.'
+            )
+        if value.upper() in _POSTGRES_RESERVED_WORDS:
+            errors.append(f'{entity} "{value}" использует зарезервированное слово PostgreSQL.')
 
+    def _validate_reference(self, reference: str, table_name: str, column_name: str, errors: list[str]) -> None:
+        if '(' not in reference or not reference.endswith(')'):
+            errors.append(
+                f'Некорректная ссылка в {table_name}.{column_name}: "{reference}". '
+                'Ожидается формат table(column).'
+            )
+            return
+        ref_table, ref_column_part = reference.split('(', 1)
+        ref_column = ref_column_part[:-1]
+        if not ref_table or not ref_column:
+            errors.append(
+                f'Некорректная ссылка в {table_name}.{column_name}: "{reference}". '
+                'Ожидается формат table(column).'
+            )
+            return
+        self._validate_identifier('Таблица (FK)', ref_table, errors)
+        self._validate_identifier('Колонка (FK)', ref_column, errors)
 
-def _validate_reference_cell(value: str | None, column: str, table: str) -> None:
-    if value is None:
-        return
-    if not _REFERENCE_PATTERN.match(value):
-        raise AppError(
-            f'Колонка {column} таблицы {table}: некорректный формат ссылки '
-            f'"{value}". Ожидается формат table(column).'
-        )
+    @staticmethod
+    def _validate_default_value(default: str, db_type: str, column: str, table: str, errors: list[str]) -> None:
+        if is_sql_expression(default):
+            return
+        if is_boolean_type(db_type):
+            errors.append(
+                f'Колонка {column} таблицы {table}: значение по умолчанию "{default}" '
+                f'некорректно для типа {db_type}. '
+                'Допустимы только SQL-константы: true, false, null.'
+            )
+            return
+        if is_numeric_type(db_type):
+            try:
+                float(default)
+            except ValueError:
+                errors.append(
+                    f'Колонка {column} таблицы {table}: значение по умолчанию "{default}" '
+                    f'не является допустимым числом для типа {db_type}.'
+                )

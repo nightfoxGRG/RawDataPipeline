@@ -1,3 +1,4 @@
+# project_paths.py
 from pathlib import Path
 
 class ProjectPaths:

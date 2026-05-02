@@ -1,3 +1,4 @@
+# db_session_config.py
 """Фабрика сессий SQLAlchemy."""
 from contextlib import contextmanager
 from typing import Generator

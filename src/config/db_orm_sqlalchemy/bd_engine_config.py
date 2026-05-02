@@ -1,3 +1,4 @@
+# bd_engine_config.py
 """Создание SQLAlchemy engine из config.toml / config.local.toml."""
 from sqlalchemy import create_engine as _create_engine
 from sqlalchemy.engine import Engine
