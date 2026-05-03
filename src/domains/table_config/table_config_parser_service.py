@@ -3,6 +3,7 @@ import json
 from io import BytesIO
 from pathlib import Path
 
+from common.singleton_meta import SingletonMeta
 from openpyxl import load_workbook
 
 from domains.table_config.table_config_model import TableConfig, ColumnConfig
@@ -21,7 +22,7 @@ FOREIGN_KEY_LABELS = {'внешний ключ', 'foreign_key'}
 DEFAULT_LABELS = {'значение по умолчанию', 'default'}
 
 
-class TableConfigParserService:
+class TableConfigParserService(metaclass=SingletonMeta):
 
     def __init__(self, validator: SqlGeneratorValidator | None = None) -> None:
         self._validator = validator or SqlGeneratorValidator()

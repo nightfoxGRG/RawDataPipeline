@@ -27,8 +27,8 @@ class PostgresContainerBase:
         class TestUsersRepository(PostgresContainerBase):
             def test_something(self):
                 with self.session_scope() as session:
-                    repo = UsersRepository(session)
-                    result = repo.find_user_info_by_subject_id('LOCAL_USER')
+                    repo = UsersRepository()
+                    result = repo.find_user_info_by_subject_id('LOCAL_USER', session)
                     assert result is not None
     """
 

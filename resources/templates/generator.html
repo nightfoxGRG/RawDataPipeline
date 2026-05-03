@@ -7,9 +7,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
   </head>
   <body class="mode-{{ run_mode }}">
-    <div class="mode-badge mode-badge--{{ run_mode }}">
-      {% if run_mode == 'local' %}локальный режим{% else %}серверный режим{% endif %}
-    </div>
+    {% include '_badges.html' %}
 
     {% set active_page = 'generator' %}
     {% include '_menu.html' %}

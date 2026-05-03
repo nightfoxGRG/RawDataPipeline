@@ -5,6 +5,7 @@ from io import BytesIO
 from pathlib import Path
 from urllib.parse import quote
 
+from common.singleton_meta import SingletonMeta
 from flask import Request, Response
 from openpyxl import load_workbook
 
@@ -24,7 +25,7 @@ _PACKAGE_ID_COL = {'label': 'Пакетный ид', 'code': 'package_id', 'db_t
 _PACKAGE_TS_COL = {'label': 'Пакетный временной штамп', 'code': 'package_timestamp', 'db_type': 'timestamptz'}
 
 
-class TableConfigGeneratorService:
+class TableConfigGeneratorService(metaclass=SingletonMeta):
 
     def __init__(self, reader: TableConfigDataFileReaderService | None = None) -> None:
         self._reader = reader or TableConfigDataFileReaderService()

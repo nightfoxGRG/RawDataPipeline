@@ -2,11 +2,11 @@
 #system_db_config
 from config.config_loader import get_config
 
-_db_url: str | None = None
-_DB_SYSTEM_SCHEMA: str  = "data_pipline_schema"
+_db_urls: dict[str | None, str] = {}
+_DB_SYSTEM_SCHEMA: str = "data_pipline_schema"
 
-def _build_url() -> str:
-    global _db_url
+
+def _build_url(driver: str | None = None) -> str:
     cfg = get_config()
     db = cfg.get('database', {})
     host = db.get('host')
@@ -14,16 +14,30 @@ def _build_url() -> str:
     name = db.get('name')
     user = db.get('user')
     password = db.get('password', '')
-    db_url =  f'postgresql://{user}:{password}@{host}:{port}/{name}'
-    _db_url = db_url
-    return _db_url
+
+    scheme = 'postgresql'
+    if driver:
+        scheme = f'{scheme}+{driver}'
+
+    auth = ''
+    if user:
+        auth = user
+        if password:
+            auth = f'{auth}:{password}'
+        auth = f'{auth}@'
+
+    db_url = f'{scheme}://{auth}{host}:{port}/{name}'
+    return db_url
 
 
-def get_db_url() -> str:
-    global _db_url
-    if _db_url is None:
-        return _build_url()
-    return _db_url
+def get_db_url(driver: str | None = None) -> str:
+    global _db_urls
+    if driver in _db_urls:
+        return _db_urls[driver]
+
+    db_url = _build_url(driver)
+    _db_urls[driver] = db_url
+    return db_url
 
 def get_db_system_schema() -> str:
     return _DB_SYSTEM_SCHEMA

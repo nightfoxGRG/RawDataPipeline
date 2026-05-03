@@ -1,4 +1,5 @@
 # sql_generator_service.py
+from common.singleton_meta import SingletonMeta
 from domains.table_config.table_config_model import ColumnConfig, TableConfig
 from domains.sql_generator.postgres_types import is_numeric_type, is_quoted_type, is_sql_expression
 from utils.file_util import read_uploaded_file
@@ -14,24 +15,24 @@ _PACKAGE_ID = ColumnConfig(name='package_id', db_type='varchar', nullable=False,
 _PACKAGE_TS = ColumnConfig(name='package_timestamp', db_type='timestamptz', nullable=False, label='Пакетный временной штамп')
 
 
-class SqlGeneratorService:
+class SqlGeneratorService(metaclass=SingletonMeta):
 
     def __init__(self, parser: TableConfigParserService | None = None, validator: SqlGeneratorValidator | None = None) -> None:
         self._parser = parser or TableConfigParserService()
         self._validator = validator or SqlGeneratorValidator()
 
-    def generate_sql_from_config(self, files, form) -> tuple[str, bool, bool]:
+    def generate_sql_from_config(self, files, form, schema: str | None = None) -> tuple[str, bool, bool]:
         add_pk = form.get('add_pk') == '1'
         add_package_fields = form.get('add_package_fields') == '1'
 
         content, filename = read_uploaded_file(files.get('config_file'), ALLOWED_EXTENSIONS)
         tables = self._parser.parse_tables_config(content, filename)
         self._validator.validate_tables(tables)
-        sql_output = self.generate_sql(tables, add_pk=add_pk, add_package_fields=add_package_fields)
+        sql_output = self.generate_sql(tables, add_pk=add_pk, add_package_fields=add_package_fields, schema=schema)
 
         return sql_output, add_pk, add_package_fields
 
-    def generate_sql(self, tables: list[TableConfig], add_pk: bool = False, add_package_fields: bool = False) -> str:
+    def generate_sql(self, tables: list[TableConfig], add_pk: bool = False, add_package_fields: bool = False, schema: str | None = None) -> str:
         statements = []
         for table in tables:
             columns = list(table.columns)
@@ -81,7 +82,8 @@ class SqlGeneratorService:
                 else:
                     lines.append(base if is_last else base + ',')
 
-            statements.append(f'create table {table.name} (\n{"\n".join(lines)}\n);')
+            qualified_name = f'{schema}.{table.name}' if schema else table.name
+            statements.append(f'create table {qualified_name} (\n{"\n".join(lines)}\n);')
         return '\n\n'.join(statements)
 
     def format_column(self, column: ColumnConfig) -> str:

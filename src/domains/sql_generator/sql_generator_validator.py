@@ -1,6 +1,7 @@
 # sql_generator_validator.py
 import re
 
+from common.singleton_meta import SingletonMeta
 from common.error import AppError, ValidationError
 from domains.table_config.table_config_model import TableConfig
 from domains.sql_generator.postgres_types import is_boolean_type, is_numeric_type, is_sql_expression
@@ -23,7 +24,7 @@ _POSTGRES_RESERVED_WORDS = {
 }
 
 
-class SqlGeneratorValidator:
+class SqlGeneratorValidator(metaclass=SingletonMeta):
 
     def validate_tables(self, tables: list[TableConfig]) -> None:
         """Проверить таблицы и при наличии проблем выбросить ValidationError со списком ошибок."""

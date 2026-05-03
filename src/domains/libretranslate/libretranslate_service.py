@@ -3,10 +3,11 @@ import re
 
 import requests
 
+from common.singleton_meta import SingletonMeta
 from config.config_loader import get_config
 
 
-class LibreTranslateService:
+class LibreTranslateService(metaclass=SingletonMeta):
 
     def translate_to_english(self, name: str) -> str:
         """Перевести *name* на английский через LibreTranslate, если содержит кириллицу."""

@@ -22,3 +22,6 @@ class UserInfoModel:
     # db_setting
     db_id: int | None
     db_label: str | None
+    db_host: str | None
+    db_port: str | None
+    db_name: str | None

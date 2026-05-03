@@ -10,6 +10,7 @@ import re
 from io import BytesIO, StringIO
 from pathlib import Path
 
+from common.singleton_meta import SingletonMeta
 from openpyxl import load_workbook
 
 from domains.libretranslate.libretranslate_service import LibreTranslateService
@@ -21,7 +22,7 @@ _DATETIME_RE = re.compile(r'^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}')
 _BOOL_VALUES: frozenset[str] = frozenset({'true', 'false'})
 
 
-class TableConfigDataFileReaderService:
+class TableConfigDataFileReaderService(metaclass=SingletonMeta):
 
     def __init__(self, libretranslate: LibreTranslateService | None = None) -> None:
         self._libretranslate = libretranslate or LibreTranslateService()

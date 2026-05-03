@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ project_name }} — Загружатор</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  </head>
+  <body class="mode-{{ run_mode }}">
+    {% include '_badges.html' %}
+
+    {% set active_page = 'loader' %}
+    {% include '_menu.html' %}
+
+    <div class="content">
+      <h1>Загружатор</h1>
+    </div>
+  </body>
+</html>

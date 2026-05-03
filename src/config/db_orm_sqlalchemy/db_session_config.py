@@ -5,7 +5,7 @@ from typing import Generator
 
 from sqlalchemy.orm import Session, sessionmaker
 
-from config.db_orm_sqlalchemy.bd_engine_config import engine
+from src.config.db_orm_sqlalchemy.bd_engine_config import engine
 
 _SessionFactory = sessionmaker(bind=engine, expire_on_commit=False)
 

@@ -26,17 +26,17 @@ class TestUsersRepositoryFindBySubjectId(PostgresContainerBase):
     # ------------------------------------------------------------------
 
     def test_returns_user_info_for_existing_user(self):
-        repo = UsersRepository(self.session)
+        repo = UsersRepository()
 
-        result = repo.find_user_info_by_subject_id('LOCAL_USER')
+        result = repo.find_user_info_by_subject_id('LOCAL_USER', self.session)
 
         assert result is not None
         assert isinstance(result, UserInfoModel)
 
     def test_correct_user_fields(self):
-        repo = UsersRepository(self.session)
+        repo = UsersRepository()
 
-        result = repo.find_user_info_by_subject_id('LOCAL_USER')
+        result = repo.find_user_info_by_subject_id('LOCAL_USER', self.session)
 
         assert result.subject_id == 'LOCAL_USER'
         assert result.first_name == 'Локальный пользователь'
@@ -45,9 +45,9 @@ class TestUsersRepositoryFindBySubjectId(PostgresContainerBase):
         assert result.email is None
 
     def test_project_and_db_are_none_without_settings(self):
-        repo = UsersRepository(self.session)
+        repo = UsersRepository()
 
-        result = repo.find_user_info_by_subject_id('LOCAL_USER')
+        result = repo.find_user_info_by_subject_id('LOCAL_USER', self.session)
 
         assert result.project_id is None
         assert result.project_schema is None
@@ -56,16 +56,16 @@ class TestUsersRepositoryFindBySubjectId(PostgresContainerBase):
         assert result.db_label is None
 
     def test_returns_none_for_nonexistent_subject_id(self):
-        repo = UsersRepository(self.session)
+        repo = UsersRepository()
 
-        result = repo.find_user_info_by_subject_id('NONEXISTENT_USER')
+        result = repo.find_user_info_by_subject_id('NONEXISTENT_USER', self.session)
 
         assert result is None
 
     def test_user_id_is_positive_integer(self):
-        repo = UsersRepository(self.session)
+        repo = UsersRepository()
 
-        result = repo.find_user_info_by_subject_id('LOCAL_USER')
+        result = repo.find_user_info_by_subject_id('LOCAL_USER', self.session)
 
         assert isinstance(result.user_id, int)
         assert result.user_id > 0
@@ -106,9 +106,9 @@ class TestUsersRepositoryFindBySubjectId(PostgresContainerBase):
 
     def test_returns_project_fields_when_settings_exist(self):
         project_id, _ = self._insert_test_data()
-        repo = UsersRepository(self.session)
+        repo = UsersRepository()
 
-        result = repo.find_user_info_by_subject_id('LOCAL_USER')
+        result = repo.find_user_info_by_subject_id('LOCAL_USER', self.session)
 
         assert result.project_id == project_id
         assert result.project_schema == 'test_schema'
@@ -116,26 +116,26 @@ class TestUsersRepositoryFindBySubjectId(PostgresContainerBase):
 
     def test_returns_db_fields_when_settings_exist(self):
         _, db_id = self._insert_test_data()
-        repo = UsersRepository(self.session)
+        repo = UsersRepository()
 
-        result = repo.find_user_info_by_subject_id('LOCAL_USER')
+        result = repo.find_user_info_by_subject_id('LOCAL_USER', self.session)
 
         assert result.db_id == db_id
         assert result.db_label == 'test_db'
 
     def test_user_fields_unchanged_after_settings_insert(self):
         self._insert_test_data()
-        repo = UsersRepository(self.session)
+        repo = UsersRepository()
 
-        result = repo.find_user_info_by_subject_id('LOCAL_USER')
+        result = repo.find_user_info_by_subject_id('LOCAL_USER', self.session)
 
         assert result.subject_id == 'LOCAL_USER'
         assert result.is_tech_user is True
 
     def test_tech_user_is_found(self):
-        repo = UsersRepository(self.session)
+        repo = UsersRepository()
 
-        result = repo.find_user_info_by_subject_id('TECH_USER')
+        result = repo.find_user_info_by_subject_id('TECH_USER', self.session)
 
         assert result is not None
         assert result.subject_id == 'TECH_USER'
