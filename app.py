@@ -11,7 +11,7 @@ from common.context_service import ContextService
 from config.db_migration_yoyo.db_migrate_config_at_start import run_migrations_on_start
 from domains.libretranslate.libretranslate_service import LibreTranslateService
 from domains.sql_generator.sql_generator_service import SqlGeneratorService
-from domains.sql_generator.sql_generator_validator import SqlGeneratorValidator
+from domains.table_config.table_config_validator import TableConfigValidator
 from domains.table_config.table_config_data_file_reader_service import TableConfigDataFileReaderService
 from domains.table_config.table_config_generator_service import TableConfigGeneratorService
 from domains.table_config.table_config_parser_service import TableConfigParserService
@@ -22,7 +22,7 @@ from config.db_orm_sqlalchemy.db_session_config import session_scope
 _SYSTEM_SCHEMA = 'system'
 
 _libretranslate = LibreTranslateService()
-_validator = SqlGeneratorValidator()
+_validator = TableConfigValidator()
 _reader = TableConfigDataFileReaderService(libretranslate=_libretranslate)
 _parser = TableConfigParserService(validator=_validator)
 _sql_generator = SqlGeneratorService(parser=_parser, validator=_validator)
@@ -111,10 +111,7 @@ def create_app() -> Flask:
 
     @app.post('/sql_generator')
     def post_sql_generator():
-        schema = g.current_user.project_schema if g.current_user else None
-        sql_output, add_pk, add_package_fields = _sql_generator.generate_sql_from_config(
-            request.files, request.form, schema
-        )
+        sql_output, add_pk, add_package_fields = _sql_generator.generate_sql_from_system_config(request.form)
         return render_template(
             'generator.html',
             sql_output=sql_output,
@@ -129,6 +126,26 @@ def create_app() -> Flask:
     @app.post('/table_config_generator')
     def post_table_config_generator():
         return _table_config_generator.generate_table_config_from_data_file(request)
+
+    @app.post('/table_config_generator_from_directory')
+    def post_table_config_generator_from_directory():
+        return _table_config_generator.generate_table_config_from_directory(request)
+
+    @app.post('/table_config_upload')
+    def post_table_config_upload():
+        return _table_config_generator.upload_table_config_file(request)
+
+    @app.get('/table_config_download_system')
+    def get_table_config_download_system():
+        return _table_config_generator.download_table_config_system()
+
+    @app.get('/table_config_validate_system')
+    def get_table_config_validate_system():
+        return _table_config_generator.validate_table_config_system()
+
+    @app.post('/table_config_validate_local')
+    def post_table_config_validate_local():
+        return _table_config_generator.validate_table_config_local(request)
 
     @app.get('/download_table_config_template')
     def download_table_config_template():

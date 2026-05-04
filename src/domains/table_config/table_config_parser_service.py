@@ -8,7 +8,7 @@ from openpyxl import load_workbook
 
 from domains.table_config.table_config_model import TableConfig, ColumnConfig
 from common.error import AppError
-from domains.sql_generator.sql_generator_validator import SqlGeneratorValidator
+from domains.table_config.table_config_validator import TableConfigValidator
 
 TABLE_NAME_LABELS = {'наименование таблицы', 'table_name'}
 COLUMN_CODE_LABELS = {'код колонки в бд', 'column_code'}
@@ -24,8 +24,8 @@ DEFAULT_LABELS = {'значение по умолчанию', 'default'}
 
 class TableConfigParserService(metaclass=SingletonMeta):
 
-    def __init__(self, validator: SqlGeneratorValidator | None = None) -> None:
-        self._validator = validator or SqlGeneratorValidator()
+    def __init__(self, validator: TableConfigValidator | None = None) -> None:
+        self._validator = validator or TableConfigValidator()
 
     def parse_tables_config(self, content: bytes, filename: str) -> list[TableConfig]:
         extension = Path(filename).suffix.lower()

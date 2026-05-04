@@ -1,13 +1,16 @@
 # sql_generator_service.py
 from common.singleton_meta import SingletonMeta
+from common.error import AppError
 from domains.table_config.table_config_model import ColumnConfig, TableConfig
 from domains.sql_generator.postgres_types import is_numeric_type, is_quoted_type, is_sql_expression
-from utils.file_util import read_uploaded_file
 from domains.table_config.table_config_parser_service import TableConfigParserService
-from domains.sql_generator.sql_generator_validator import SqlGeneratorValidator
+from domains.table_config.table_config_validator import TableConfigValidator
+from domains.minio.minio_service import MinioService
+from domains.project.project_repository import ProjectRepository
+from config.db_orm_sqlalchemy.db_session_config import session_scope
+from flask import g
 
-ALLOWED_EXTENSIONS = {'.xlsx', '.xlsm', '.json'}
-
+_TC_BUCKET = 'data-pipeline-table-config'
 _SIZED_TYPES = {'varchar', 'character varying', 'char', 'character', 'numeric', 'decimal'}
 
 _AUTO_PK = ColumnConfig(name='id', db_type='bigserial', nullable=False, primary_key=True, label='Ид')
@@ -17,19 +20,36 @@ _PACKAGE_TS = ColumnConfig(name='package_timestamp', db_type='timestamptz', null
 
 class SqlGeneratorService(metaclass=SingletonMeta):
 
-    def __init__(self, parser: TableConfigParserService | None = None, validator: SqlGeneratorValidator | None = None) -> None:
+    def __init__(
+        self,
+        parser: TableConfigParserService | None = None,
+        validator: TableConfigValidator | None = None,
+        minio: MinioService | None = None,
+    ) -> None:
         self._parser = parser or TableConfigParserService()
-        self._validator = validator or SqlGeneratorValidator()
+        self._validator = validator or TableConfigValidator()
+        self._minio = minio or MinioService()
 
-    def generate_sql_from_config(self, files, form, schema: str | None = None) -> tuple[str, bool, bool]:
+    def generate_sql_from_system_config(self, form) -> tuple[str, bool, bool]:
         add_pk = form.get('add_pk') == '1'
         add_package_fields = form.get('add_package_fields') == '1'
 
-        content, filename = read_uploaded_file(files.get('config_file'), ALLOWED_EXTENSIONS)
-        tables = self._parser.parse_tables_config(content, filename)
-        self._validator.validate_tables(tables)
-        sql_output = self.generate_sql(tables, add_pk=add_pk, add_package_fields=add_package_fields, schema=schema)
+        current_user = getattr(g, 'current_user', None)
+        project_id = getattr(current_user, 'project_id', None) if current_user else None
+        project_schema = getattr(current_user, 'project_schema', None) if current_user else None
 
+        if not project_id:
+            raise AppError('Проект не определён.')
+
+        with session_scope() as session:
+            project = ProjectRepository(session).find_by_id(project_id)
+            if not project or not project.table_config_minio_id:
+                raise AppError('Конфигурационный файл в системе отсутствует.')
+            content = self._minio.download_bytes(_TC_BUCKET, project.table_config_minio_id)
+
+        tables = self._parser.parse_tables_config(content, 'config.xlsm')
+        self._validator.validate_tables(tables)
+        sql_output = self.generate_sql(tables, add_pk=add_pk, add_package_fields=add_package_fields, schema=project_schema)
         return sql_output, add_pk, add_package_fields
 
     def generate_sql(self, tables: list[TableConfig], add_pk: bool = False, add_package_fields: bool = False, schema: str | None = None) -> str:

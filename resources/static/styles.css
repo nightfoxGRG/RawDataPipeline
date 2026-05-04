@@ -1,6 +1,7 @@
 :root {
   font-family: Arial, sans-serif;
   font-size: 14px;
+  --content-max-width: 140ch;
 }
 
 * {
@@ -204,14 +205,149 @@ h2 {
   box-shadow: 0 1px 4px rgba(0,0,0,0.08);
 }
 
+.section-divider {
+  border: none;
+  border-top: 1px solid #e0e4ea;
+  margin: 0 0 16px 0;
+  max-width: var(--content-max-width);
+}
+
 .hint {
   margin: 0 0 4px 0;
   color: #5f6368;
   line-height: 1.5;
+  max-width: var(--content-max-width);
 }
 
 .error {
   border-left: 4px solid #c5221f;
+}
+
+/* ── Toast-уведомления ── */
+.toast-container {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 950;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 420px;
+  pointer-events: none;
+  padding-top: 10px;
+  padding-left: 10px;
+}
+
+.toast-container > * {
+  pointer-events: auto;
+}
+
+.toast-close-all {
+  background: #fff5f5;
+  border: 1px solid #f5c6c6;
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #c5221f;
+  cursor: pointer;
+  margin: 0;
+  height: auto;
+}
+
+.toast-close-all:hover {
+  background: #fde8e8;
+}
+
+.toast {
+  position: relative;
+  background: #fff5f5;
+  border-radius: 8px;
+  border: 1px solid #f5c6c6;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  width: 100%;
+  margin-top: 10px;
+  margin-left: 10px;
+}
+
+.toast-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px 12px 14px;
+}
+
+.toast-icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  background: #c5221f;
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  margin-top: 1px;
+}
+
+.toast-message {
+  flex: 1;
+  font-size: 13px;
+  color: #c5221f;
+  font-weight: 600;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.toast-close {
+  position: absolute;
+  top: -10px;
+  left: -10px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff5f5;
+  border: 1px solid #f5c6c6;
+  cursor: pointer;
+  color: #c5221f;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+.toast-close:hover {
+  background: #fde8e8;
+}
+
+
+/* ── Список ошибок в модальном окне ── */
+.error-modal-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.error-modal-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  color: #c5221f;
+  font-weight: 600;
+  line-height: 1.4;
 }
 
 /* ── Строка с чекбоксом ── */
@@ -275,6 +411,12 @@ button, .btn-save, .btn-secondary {
 
 button:hover, .btn-save:hover, .btn-secondary:hover {
   background: #d4d4d4;
+}
+
+.upload-buttons {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 /* ── Спиннер ── */
@@ -367,7 +509,7 @@ button:hover, .btn-save:hover, .btn-secondary:hover {
 }
 
 .modal-body {
-  padding: 24px 28px;
+  padding: 16px 28px 8px;
   flex: 1;
 }
 
@@ -387,7 +529,7 @@ button:hover, .btn-save:hover, .btn-secondary:hover {
   display: flex;
   gap: 16px;
   justify-content: flex-end;
-  padding: 20px 28px 24px;
+  padding: 12px 28px 20px;
 }
 
 .btn-modal-cancel {
@@ -434,5 +576,16 @@ button:hover, .btn-save:hover, .btn-secondary:hover {
 
 .btn-modal-primary:hover {
   background: #c62828;
+}
+
+.modal-actions--column {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.modal-actions--column .btn-modal-cancel,
+.modal-actions--column .btn-modal-primary {
+  flex: none;
 }
 

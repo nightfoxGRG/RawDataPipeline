@@ -2,10 +2,10 @@
 import pytest
 
 from common.error import ValidationError
-from domains.sql_generator.sql_generator_validator import SqlGeneratorValidator
+from domains.table_config.table_config_validator import TableConfigValidator
 from domains.table_config.table_config_model import TableConfig, ColumnConfig
 
-_validator = SqlGeneratorValidator()
+_validator = TableConfigValidator()
 
 
 def test_validate_tables_detects_duplicates_and_reserved_words():

@@ -1,9 +1,11 @@
-docker-compose -f libretranslate.yml -p libretranslate up -d
 
 docker-compose -f postgres.yml -p data_pipeline_pro up -d
 
-docker compose -f docker/libretranslate.yml up -d
+docker compose -f libretranslate.yml -p data_pipeline_pro up -d
 
+docker-compose -f minio.yml -p data_pipeline_pro up -d
+
+------------------------------------------
 скачать модели для LibreTranslate
 
 https://www.argosopentech.com/argospm/index/en_ru.argosmodel
@@ -12,3 +14,49 @@ https://www.argosopentech.com/argospm/index/ru_en.argosmodel
 распаковать их в
 /Volumes/External_SSD/work/projects/LibreTranslate_modules/en_ru
 /Volumes/External_SSD/work/projects/LibreTranslate_modules/ru_en
+
+
+-------------------------------------------
+minio
+создать 2 бакета 
+data-pipeline-table-config
+data-pipeline-table-config-arch
+
+
+Способ 2: Через секцию Buckets
+В левом меню выберите "Buckets"
+
+Нажмите "Create Bucket" (синяя кнопка сверху справа)
+
+Заполните имя и настройки
+
+Нажмите "Create"
+
+3. Настройка прав доступа (Access Policy)
+После создания bucket настройте права:
+
+Перейдите в Buckets → выберите ваш bucket
+
+Откройте вкладку "Access Policy"
+
+Выберите один из вариантов:
+
+Private - только ваш аккаунт (по умолчанию)
+
+Public - публичный доступ на чтение
+
+Custom - свои правила (в формате JSON)
+
+Пример для публичного доступа на чтение:
+
+json
+{
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {"AWS": ["*"]},
+      "Action": ["s3:GetObject"],
+      "Resource": ["arn:aws:s3:::my-bucket/*"]
+    }
+  ],
+  "Version": "2012-10-17"

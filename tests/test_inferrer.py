@@ -103,8 +103,9 @@ def test_read_data_file_excel():
         ['id', 'name', 'age'],
         [[1, 'Alice', 30], [2, 'Bob', 25]],
     )
-    table_name, headers, rows = _reader.read_data_file(content, 'users.xlsx')
+    table_name, original_name, headers, rows = _reader.read_data_file(content, 'users.xlsx')
     assert table_name == 'users'
+    assert original_name == 'users'
     assert headers == ['id', 'name', 'age']
     assert len(rows) == 2
 
@@ -114,8 +115,9 @@ def test_read_data_file_csv():
         ['product', 'price'],
         [['Apple', '1.50'], ['Banana', '0.75']],
     )
-    table_name, headers, rows = _reader.read_data_file(content, 'products.csv')
+    table_name, original_name, headers, rows = _reader.read_data_file(content, 'products.csv')
     assert table_name == 'products'
+    assert original_name == 'products'
     assert headers == ['product', 'price']
     assert len(rows) == 2
 
@@ -243,7 +245,7 @@ def test_generate_excel_config_v2_full_pipeline():
         ['user_id', 'username', 'score'],
         [['1', 'alice', '42'], ['2', 'bob', '99']],
     )
-    table_name, headers, rows = _reader.read_data_file(content, 'stats.csv')
+    table_name, _, headers, rows = _reader.read_data_file(content, 'stats.csv')
     columns = _reader.infer_columns(headers, rows)
     xlsx_bytes = _generator.generate_excel_config_v2(table_name, columns)
 

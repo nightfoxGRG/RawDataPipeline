@@ -11,6 +11,14 @@ name     = ""
 user     = ""
 password = ""
 
+[minio]
+# S3-совместимое хранилище (MinIO). API-порт docker/minio.yml → 50002.
+endpoint       = "localhost:50002"
+access_key     = "minioadmin"
+secret_key     = "minioadmin"
+secure         = false
+default_bucket = "data-pipeline"
+
 [translation]
 # URL of the LibreTranslate service used to translate Cyrillic column headers
 # to English SQL identifiers. Change this value before starting the application

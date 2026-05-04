@@ -1,4 +1,4 @@
-# sql_generator_validator.py
+# table_config_validator.py
 import re
 
 from common.singleton_meta import SingletonMeta
@@ -24,7 +24,7 @@ _POSTGRES_RESERVED_WORDS = {
 }
 
 
-class SqlGeneratorValidator(metaclass=SingletonMeta):
+class TableConfigValidator(metaclass=SingletonMeta):
 
     def validate_tables(self, tables: list[TableConfig]) -> None:
         """Проверить таблицы и при наличии проблем выбросить ValidationError со списком ошибок."""

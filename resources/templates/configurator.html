@@ -13,20 +13,27 @@
     {% include '_menu.html' %}
 
     <div class="content">
-      <h1>Генератор конфигурационного файла БД по файлу с данными</h1>
+      <h1>Конфигуратор</h1>
+      <hr class="section-divider">
 
       <p class="hint">
-        Загрузите файл в одном из форматов: .xlsx, .xlsm, .csv.
+        Загрузите файл данных (или несколько файлов из директории) в одном из форматов: .xlsx, .xlsm, .csv.
           Первая строка должна содержать заголовки колонок.
           Система переведет названия колонок на английский, определит тип и длину каждой колонки.
-          В результате будет сформирован готовый конфигурационный файл настройки таблиц БД, который можно будет скачать.
+          В результате будет сформирован готовый конфигурационный файл настройки таблиц БД.
       </p>
 
       <!-- Скрытый input + стилизованная кнопка -->
       <input id="data_file" name="data_file" type="file" accept=".xlsx,.xlsm,.csv" style="display:none">
-      <button type="button" id="upload-btn" onclick="document.getElementById('data_file').click()">
-        Загрузить файл
-      </button>
+      <input id="data_files" name="data_files" type="file" multiple webkitdirectory directory style="display:none">
+      <div class="upload-buttons">
+        <button type="button" id="upload-btn" onclick="document.getElementById('data_file').click()">
+          Загрузить файл данных
+        </button>
+        <button type="button" id="upload-dir-btn" onclick="document.getElementById('data_files').click()">
+          Загрузить файлы данных из директории
+        </button>
+      </div>
 
       <div class="checkbox-row">
         <input type="checkbox" id="add_pk" checked>
@@ -41,110 +48,249 @@
         <span class="spinner-icon"></span> Формирование конфига…
       </div>
 
-      <div id="error-box" class="card error" style="display:none">
-        <h2>Ошибка</h2>
-        <p id="error-text"></p>
+      <hr class="section-divider" style="margin-top:16px">
+
+      <p class="hint">Проверьте корректность конфигурационного файла: структуру таблиц, имена колонок, типы и ссылки.</p>
+      <div class="upload-buttons">
+        <button type="button" id="validate-system-btn">Проверить конфигурационный файл в системе</button>
+        <button type="button" onclick="document.getElementById('validate_local_file').click()">Проверить локальный конфигурационный файл</button>
       </div>
+      <input id="validate_local_file" type="file" accept=".xlsm" style="display:none">
+
+      <div id="validate-spinner" class="spinner" style="display:none">
+        <span class="spinner-icon"></span> Проверка…
+      </div>
+
+      <hr class="section-divider" style="margin-top:16px">
+
+      <p class="hint">Скачайте шаблонный конфигурационный файл для ручного заполнения или ознакомления со структурой.</p>
+      <a href="{{ url_for('static', filename='TablesConfig.xlsm') }}" download="TablesConfig.xlsm">
+        <button type="button">Выгрузить шаблонный конфигурационный файл</button>
+      </a>
+
+      <hr class="section-divider" style="margin-top:16px">
+
+      <p class="hint">Загрузите готовый конфигурационный файл с локального компьютера в систему. Если конфигурационный файл уже существует, он будет заархивирован и заменён новым.</p>
+      <input id="upload_config_file" type="file" accept=".xlsm" style="display:none">
+      <button type="button" onclick="document.getElementById('upload_config_file').click()">Загрузить конфигурационный файл</button>
+
+      <div id="upload-spinner" class="spinner" style="display:none">
+        <span class="spinner-icon"></span> Загрузка файла…
+      </div>
+
+      <hr class="section-divider" style="margin-top:16px">
+
+      <p class="hint">Выгрузите конфигурационный файл текущего проекта из системы на локальный компьютер.</p>
+      <a href="{{ url_for('get_table_config_download_system') }}">
+        <button type="button">Выгрузить конфигурационный файл из системы</button>
+      </a>
+
     </div>
 
-    <!-- Модальное окно -->
-    <div id="modal-overlay" class="modal-overlay" style="display:none">
+    <!-- Модальное окно: данные загружены -->
+    <div id="modal-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeModal()">
       <div class="modal">
         <div class="modal-header">
-          <h2 class="modal-title">Конфигурационный файл сформирован</h2>
+          <h2 class="modal-title" id="modal-title">Данные загружены</h2>
           <button type="button" class="modal-close" onclick="closeModal()">&#x2715;</button>
         </div>
         <div class="modal-divider"></div>
         <div class="modal-body">
-          <p class="modal-desc" id="modal-filename" style="display:none"></p>
+          <p id="modal-body-text">Конфигурационный файл успешно сформирован и сохранён.</p>
         </div>
         <div class="modal-actions">
-          <a id="modal-save-btn" class="btn-modal-cancel" href="#" download onclick="setTimeout(closeModal, 300)">Сохранить файл</a>
           <button type="button" class="btn-modal-primary" onclick="closeModal()">Закрыть</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Модальное окно: выбор действия с существующим файлом -->
+    <div id="choose-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeChooseModal()">
+      <div class="modal">
+        <div class="modal-header">
+          <h2 class="modal-title">Файл конфигурации уже существует</h2>
+          <button type="button" class="modal-close" onclick="closeChooseModal()">&#x2715;</button>
+        </div>
+        <div class="modal-divider"></div>
+        <div class="modal-actions modal-actions--column">
+          <button type="button" class="btn-modal-cancel" onclick="chooseMode('append')">Добавить в конфигурационный файл</button>
+          <button type="button" class="btn-modal-primary" onclick="chooseMode('replace')">Заменить конфигурационный файл</button>
+          <button type="button" class="btn-modal-cancel" onclick="closeChooseModal()">Отмена</button>
         </div>
       </div>
     </div>
 
     <script>
       const input = document.getElementById('data_file');
+      const dirInput = document.getElementById('data_files');
       const spinner = document.getElementById('spinner');
-      const errorBox = document.getElementById('error-box');
-      const errorText = document.getElementById('error-text');
       const overlay = document.getElementById('modal-overlay');
-      const saveBtn = document.getElementById('modal-save-btn');
-      const modalFilename = document.getElementById('modal-filename');
+      const chooseOverlay = document.getElementById('choose-overlay');
+      const ALLOWED_EXT_RE = /\.(xlsx|xlsm|csv)$/i;
 
-      input.addEventListener('change', async () => {
-        if (!input.files.length) return;
+      let _pending = null;  // { url, formData, resetInput } — ожидает подтверждения замены
 
-        // Сброс состояния
-        errorBox.style.display = 'none';
+      async function submitConfig(url, formData, resetInput) {
+        closeAllToasts();
         spinner.style.display = 'flex';
-
-        const formData = new FormData();
-        formData.append('data_file', input.files[0]);
-        formData.append('add_pk', document.getElementById('add_pk').checked ? '1' : '0');
-        formData.append('add_package_fields', document.getElementById('add_package_fields').checked ? '1' : '0');
+        let needsConfirm = false;
 
         try {
-          const response = await fetch('{{ url_for("post_table_config_generator") }}', {
+          formData.append('add_pk', document.getElementById('add_pk').checked ? '1' : '0');
+          formData.append('add_package_fields', document.getElementById('add_package_fields').checked ? '1' : '0');
+
+          const response = await fetch(url, {
             method: 'POST',
             body: formData,
             headers: { 'Accept': 'application/json' },
           });
 
-          const contentType = response.headers.get('Content-Type') || '';
-
-          if (contentType.includes('json')) {
-            // Сервер вернул JSON со списком ошибок
-            const data = await response.json();
-            const messages = Array.isArray(data.errors) ? data.errors : [data.error || 'Неизвестная ошибка'];
-            showError(messages.join('\n'));
-          } else {
-            // Успех — получаем файл
-            const blob = await response.blob();
-            const disposition = response.headers.get('Content-Disposition') || '';
-            let filename = 'config.xlsm';
-
-            // Пытаемся извлечь имя файла из заголовка
-            const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i);
-            const plainMatch = disposition.match(/filename="([^"]+)"/i);
-            if (utf8Match) filename = decodeURIComponent(utf8Match[1]);
-            else if (plainMatch) filename = plainMatch[1];
-
-            const url = URL.createObjectURL(blob);
-            saveBtn.href = url;
-            saveBtn.download = filename;
-            modalFilename.textContent = filename;
+          const data = await response.json();
+          if (data.choose_mode) {
+            needsConfirm = true;
+            _pending = { url, formData, resetInput };
+            showChooseModal();
+          } else if (data.success) {
             showModal();
+          } else {
+            const messages = Array.isArray(data.errors) ? data.errors : [data.error || 'Неизвестная ошибка'];
+            showErrors(messages);
           }
         } catch (e) {
-          showError('Ошибка соединения: ' + e.message);
+          showErrors(['Ошибка соединения: ' + e.message]);
         } finally {
           spinner.style.display = 'none';
-          input.value = '';
+          if (!needsConfirm) resetInput();
+        }
+      }
+
+      input.addEventListener('change', () => {
+        if (!input.files.length) return;
+        const formData = new FormData();
+        formData.append('data_file', input.files[0]);
+        submitConfig('{{ url_for("post_table_config_generator") }}', formData, () => { input.value = ''; });
+      });
+
+      dirInput.addEventListener('change', () => {
+        if (!dirInput.files.length) return;
+
+        const filtered = Array.from(dirInput.files).filter(f => ALLOWED_EXT_RE.test(f.name));
+        if (!filtered.length) {
+          showErrors(['В директории нет файлов с поддерживаемыми расширениями (.xlsx, .xlsm, .csv).']);
+          dirInput.value = '';
+          return;
+        }
+
+        const formData = new FormData();
+        filtered.forEach(f => formData.append('data_files', f, f.name));
+        submitConfig('{{ url_for("post_table_config_generator_from_directory") }}', formData, () => { dirInput.value = ''; });
+      });
+
+      // ── Проверка конфига ─────────────────────────────────────────────────
+
+      const validateSpinner = document.getElementById('validate-spinner');
+
+      async function runValidation(fetchFn) {
+        closeAllToasts();
+        validateSpinner.style.display = 'flex';
+        try {
+          const response = await fetchFn();
+          const data = await response.json();
+          if (data.success) {
+            showModal('Проверка пройдена', 'Конфигурационный файл корректен.');
+          } else {
+            const messages = Array.isArray(data.errors) ? data.errors : [data.error || 'Неизвестная ошибка'];
+            showErrors(messages);
+          }
+        } catch (e) {
+          showErrors(['Ошибка соединения: ' + e.message]);
+        } finally {
+          validateSpinner.style.display = 'none';
+        }
+      }
+
+      document.getElementById('validate-system-btn').addEventListener('click', () => {
+        runValidation(() => fetch('{{ url_for("get_table_config_validate_system") }}', {
+          headers: { 'Accept': 'application/json' },
+        }));
+      });
+
+      const validateLocalInput = document.getElementById('validate_local_file');
+      validateLocalInput.addEventListener('change', () => {
+        if (!validateLocalInput.files.length) return;
+        const formData = new FormData();
+        formData.append('config_file', validateLocalInput.files[0]);
+        runValidation(() => fetch('{{ url_for("post_table_config_validate_local") }}', {
+          method: 'POST',
+          body: formData,
+          headers: { 'Accept': 'application/json' },
+        }));
+        validateLocalInput.value = '';
+      });
+
+      // ── Загрузка готового конфига ────────────────────────────────────────
+
+      const uploadConfigInput = document.getElementById('upload_config_file');
+      const uploadSpinner = document.getElementById('upload-spinner');
+
+      uploadConfigInput.addEventListener('change', async () => {
+        if (!uploadConfigInput.files.length) return;
+        closeAllToasts();
+        uploadSpinner.style.display = 'flex';
+        const formData = new FormData();
+        formData.append('config_file', uploadConfigInput.files[0]);
+        try {
+          const response = await fetch('{{ url_for("post_table_config_upload") }}', {
+            method: 'POST',
+            body: formData,
+            headers: { 'Accept': 'application/json' },
+          });
+          const data = await response.json();
+          if (data.success) {
+            showModal();
+          } else {
+            const messages = Array.isArray(data.errors) ? data.errors : [data.error || 'Неизвестная ошибка'];
+            showErrors(messages);
+          }
+        } catch (e) {
+          showErrors(['Ошибка соединения: ' + e.message]);
+        } finally {
+          uploadSpinner.style.display = 'none';
+          uploadConfigInput.value = '';
         }
       });
 
-      function showError(msg) {
-        errorText.textContent = msg;
-        errorBox.style.display = 'block';
-      }
+      // ── Модал: файл сформирован ──────────────────────────────────────────
 
-      function showModal() {
+      function showModal(title, text) {
+        if (title) document.getElementById('modal-title').textContent = title;
+        if (text) document.getElementById('modal-body-text').textContent = text;
         overlay.style.display = 'flex';
       }
 
       function closeModal() {
         overlay.style.display = 'none';
-        // Освобождаем blob URL
-        if (saveBtn.href.startsWith('blob:')) URL.revokeObjectURL(saveBtn.href);
+        document.getElementById('modal-title').textContent = 'Данные загружены';
+        document.getElementById('modal-body-text').textContent = 'Конфигурационный файл успешно сформирован и сохранён.';
       }
 
-      // Закрытие по клику на фон
-      overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) closeModal();
-      });
+      // ── Модал: выбор действия ────────────────────────────────────────────
+
+      function showChooseModal() { chooseOverlay.style.display = 'flex'; }
+
+      function closeChooseModal() {
+        chooseOverlay.style.display = 'none';
+        if (_pending) { _pending.resetInput(); _pending = null; }
+      }
+
+      function chooseMode(mode) {
+        if (!_pending) return;
+        const { url, formData, resetInput } = _pending;
+        _pending = null;
+        closeChooseModal();
+        formData.append('mode', mode);
+        submitConfig(url, formData, resetInput);
+      }
     </script>
   </body>
 </html>

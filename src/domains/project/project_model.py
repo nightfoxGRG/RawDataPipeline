@@ -7,6 +7,7 @@ from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, String, Text, Un
 from sqlalchemy.orm import Mapped, mapped_column
 
 from config.db_orm_sqlalchemy.db_base_config import Base
+import domains.users.model.users_model  # noqa: F401 — регистрирует таблицу users в метаданных
 
 
 class ProjectModel(Base):
@@ -27,6 +28,7 @@ class ProjectModel(Base):
     created_by: Mapped[int] = mapped_column(BigInteger, ForeignKey('users.id'), nullable=False)
     updated_at: Mapped[datetime | None] = mapped_column(nullable=True)
     updated_by: Mapped[int | None] = mapped_column(BigInteger, ForeignKey('users.id'))
+    table_config_minio_id: Mapped[str] = mapped_column(Text, nullable=True)
 
     def __repr__(self) -> str:
         return f'<ProjectModel id={self.id} schema={self.schema!r}>'

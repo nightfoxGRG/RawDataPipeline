@@ -27,10 +27,10 @@ class TableConfigDataFileReaderService(metaclass=SingletonMeta):
     def __init__(self, libretranslate: LibreTranslateService | None = None) -> None:
         self._libretranslate = libretranslate or LibreTranslateService()
 
-    def read_data_file(self, content: bytes, filename: str) -> tuple[str, list[str], list[list]]:
-        """Parse *content* from *filename* and return (table_name, headers, rows)."""
+    def read_data_file(self, content: bytes, filename: str) -> tuple[str, str, list[str], list[list]]:
+        """Parse *content* from *filename* and return (table_name, original_stem, headers, rows)."""
         extension = Path(filename).suffix.lower()
-        stem = Path(filename).stem
+        original_stem = Path(filename).stem
 
         if extension in {'.xlsx', '.xlsm'}:
             headers, rows = self._read_excel(content)
@@ -43,7 +43,16 @@ class TableConfigDataFileReaderService(metaclass=SingletonMeta):
                 f'Допустимы: {", ".join(sorted(ALLOWED_DATA_EXTENSIONS))}.'
             )
 
-        return stem, headers, rows
+        table_name = self._sanitize_table_name(original_stem)
+        return table_name, original_stem, headers, rows
+
+    def _sanitize_table_name(self, name: str) -> str:
+        code = self._libretranslate.translate_to_english(name).strip()
+        code = re.sub(r"[\s\-']+", '_', code)
+        code = re.sub(r'[^A-Za-z0-9_]', '', code)
+        if code and code[0].isdigit():
+            code = '_' + code
+        return code.lower() or 'table'
 
     def infer_columns(self, headers: list[str], rows: list[list]) -> list[dict]:
         """Return a list of column-info dicts inferred from *headers* and *rows*."""
