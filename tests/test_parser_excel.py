@@ -3,7 +3,10 @@ from io import BytesIO
 import pytest
 from openpyxl import Workbook
 
-from services.parser import ConfigParseError, parse_tables_config
+from common.error import AppError
+from domains.table_config.table_config_parser_service import TableConfigParserService
+
+_parser = TableConfigParserService()
 
 
 def test_parse_excel_tables_config_like_template():
@@ -39,7 +42,7 @@ def test_parse_excel_tables_config_like_template():
     payload = BytesIO()
     wb.save(payload)
 
-    tables = parse_tables_config(payload.getvalue(), 'config.xlsx')
+    tables = _parser.parse_tables_config(payload.getvalue(), 'config.xlsx')
 
     assert len(tables) == 1
     assert tables[0].name == 'test_table'
@@ -119,7 +122,7 @@ def test_parse_excel_v2_single_table():
         }
     ])
 
-    tables = parse_tables_config(content, 'config.xlsm')
+    tables = _parser.parse_tables_config(content, 'config.xlsm')
 
     assert len(tables) == 1
     assert tables[0].name == 'users'
@@ -152,7 +155,7 @@ def test_parse_excel_v2_two_tables_side_by_side():
         },
     ])
 
-    tables = parse_tables_config(content, 'config.xlsm')
+    tables = _parser.parse_tables_config(content, 'config.xlsm')
 
     assert len(tables) == 2
     names = {t.name for t in tables}
@@ -191,7 +194,7 @@ def test_parse_excel_v2_and_v1_in_same_workbook():
     payload = BytesIO()
     wb.save(payload)
 
-    tables = parse_tables_config(payload.getvalue(), 'config.xlsm')
+    tables = _parser.parse_tables_config(payload.getvalue(), 'config.xlsm')
 
     table_names = {t.name for t in tables}
     assert 'v1_table' in table_names
@@ -209,8 +212,8 @@ def test_parse_excel_v2_invalid_primary_key_raises_error():
         }
     ])
 
-    with pytest.raises(ConfigParseError, match='Первичный ключ'):
-        parse_tables_config(content, 'config.xlsm')
+    with pytest.raises(AppError, match='Первичный ключ'):
+        _parser.parse_tables_config(content, 'config.xlsm')
 
 
 def test_parse_excel_v2_invalid_foreign_key_raises_error():
@@ -225,8 +228,8 @@ def test_parse_excel_v2_invalid_foreign_key_raises_error():
         }
     ])
 
-    with pytest.raises(ConfigParseError, match='некорректный формат ссылки'):
-        parse_tables_config(content, 'config.xlsm')
+    with pytest.raises(AppError, match='некорректный формат ссылки'):
+        _parser.parse_tables_config(content, 'config.xlsm')
 
 
 def test_parse_excel_v2_table_name_label_in_row1():
@@ -247,7 +250,7 @@ def test_parse_excel_v2_table_name_label_in_row1():
     payload = BytesIO()
     wb.save(payload)
 
-    tables = parse_tables_config(payload.getvalue(), 'config.xlsm')
+    tables = _parser.parse_tables_config(payload.getvalue(), 'config.xlsm')
 
     assert len(tables) == 1
     assert tables[0].name == 'users'
@@ -273,8 +276,8 @@ def test_parse_excel_invalid_primary_key_value_raises_error():
     payload = BytesIO()
     wb.save(payload)
 
-    with pytest.raises(ConfigParseError, match='Первичный ключ'):
-        parse_tables_config(payload.getvalue(), 'config.xlsx')
+    with pytest.raises(AppError, match='Первичный ключ'):
+        _parser.parse_tables_config(payload.getvalue(), 'config.xlsx')
 
 
 def test_parse_excel_da_net_for_required_and_unique():
@@ -304,7 +307,7 @@ def test_parse_excel_da_net_for_required_and_unique():
     payload = BytesIO()
     wb.save(payload)
 
-    tables = parse_tables_config(payload.getvalue(), 'config.xlsx')
+    tables = _parser.parse_tables_config(payload.getvalue(), 'config.xlsx')
 
     assert len(tables) == 1
     cols = {c.name: c for c in tables[0].columns}
@@ -336,8 +339,8 @@ def test_parse_excel_invalid_required_value_raises_error():
     payload = BytesIO()
     wb.save(payload)
 
-    with pytest.raises(ConfigParseError, match='Обязательность'):
-        parse_tables_config(payload.getvalue(), 'config.xlsx')
+    with pytest.raises(AppError, match='Обязательность'):
+        _parser.parse_tables_config(payload.getvalue(), 'config.xlsx')
 
 
 def test_parse_excel_invalid_unique_value_raises_error():
@@ -357,8 +360,8 @@ def test_parse_excel_invalid_unique_value_raises_error():
     payload = BytesIO()
     wb.save(payload)
 
-    with pytest.raises(ConfigParseError, match='Уникальность'):
-        parse_tables_config(payload.getvalue(), 'config.xlsx')
+    with pytest.raises(AppError, match='Уникальность'):
+        _parser.parse_tables_config(payload.getvalue(), 'config.xlsx')
 
 
 def test_parse_excel_invalid_reference_format_raises_error():
@@ -381,8 +384,8 @@ def test_parse_excel_invalid_reference_format_raises_error():
     payload = BytesIO()
     wb.save(payload)
 
-    with pytest.raises(ConfigParseError, match='некорректный формат ссылки'):
-        parse_tables_config(payload.getvalue(), 'config.xlsx')
+    with pytest.raises(AppError, match='некорректный формат ссылки'):
+        _parser.parse_tables_config(payload.getvalue(), 'config.xlsx')
 
 
 def test_parse_excel_v1_default_value():
@@ -405,7 +408,7 @@ def test_parse_excel_v1_default_value():
     payload = BytesIO()
     wb.save(payload)
 
-    tables = parse_tables_config(payload.getvalue(), 'config.xlsx')
+    tables = _parser.parse_tables_config(payload.getvalue(), 'config.xlsx')
 
     assert len(tables) == 1
     cols = {c.name: c for c in tables[0].columns}
@@ -428,7 +431,7 @@ def test_parse_excel_v2_default_value():
         }
     ])
 
-    tables = parse_tables_config(content, 'config.xlsm')
+    tables = _parser.parse_tables_config(content, 'config.xlsm')
 
     assert len(tables) == 1
     cols = {c.name: c for c in tables[0].columns}

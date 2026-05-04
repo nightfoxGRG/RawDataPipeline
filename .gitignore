@@ -2,3 +2,18 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .venv/
+.venv2/
+# Локальный конфиг с секретами — не коммитить
+/.idea/.name
+/src/config/config.local.toml
+/.idea/copilot.data.migration.ask2agent.xml
+/.idea/copilotDiffState.xml
+/.idea/DataPipelinePro.iml
+/.idea/dataSources.xml
+/.idea/misc.xml
+/.idea/modules.xml
+/.idea/inspectionProfiles/profiles_settings.xml
+/.idea/sqldialects.xml
+/.idea/vcs.xml
+/.vscode/
+.vscode/settings.json

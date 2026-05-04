@@ -1,0 +1,17 @@
+services:
+  minio:
+    image: minio/minio:latest
+    container_name: minio-server
+    ports:
+      - "50002:9000"      # API порт (S3 совместимый)
+      - "50003:9001"      # Web консоль (дополнительно, но удобно)
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/Volumes/External_SSD/work/minio_data  # Это и есть persistent volume
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+
+volumes:
+  minio_data:  # Объявляем том, который будет хранить данные

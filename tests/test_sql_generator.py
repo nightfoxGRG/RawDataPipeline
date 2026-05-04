@@ -1,7 +1,10 @@
+# test_sql_generator.py
 import re
 
-from services.models import ColumnConfig, TableConfig
-from services.sql_generator import generate_sql
+from domains.sql_generator.sql_generator_service import SqlGeneratorService
+from domains.table_config.table_config_model import TableConfig, ColumnConfig
+
+_sql = SqlGeneratorService()
 
 
 def test_generate_sql_includes_constraints_and_references():
@@ -16,7 +19,7 @@ def test_generate_sql_includes_constraints_and_references():
         )
     ]
 
-    sql = generate_sql(tables)
+    sql = _sql.generate_sql(tables)
 
     assert 'create table test_table' in sql
     assert re.search(r'id\s+bigserial\s+not null\s+primary key', sql)
@@ -36,7 +39,7 @@ def test_generate_sql_appends_column_label_as_comment():
         )
     ]
 
-    sql = generate_sql(tables)
+    sql = _sql.generate_sql(tables)
 
     assert re.search(r'id\s+bigserial\s+not null\s+primary key,\s+--\s+Идентификатор', sql)
     assert re.search(r'full_name\s+varchar\(255\),\s+--\s+Полное имя', sql)
@@ -59,7 +62,7 @@ def test_generate_sql_aligns_comments_within_table():
         )
     ]
 
-    sql = generate_sql(tables)
+    sql = _sql.generate_sql(tables)
     comment_positions = [
         line.index('--') for line in sql.splitlines() if '--' in line
     ]
@@ -77,7 +80,7 @@ def test_generate_sql_aligns_comments_within_table():
         )
     ]
 
-    sql = generate_sql(tables)
+    sql = _sql.generate_sql(tables)
     lines = [ln for ln in sql.splitlines() if ln.strip() and not ln.strip().startswith('create') and ln.strip() != ');']
 
     # Each column line: name padded to the same width, then two spaces, then type
@@ -102,7 +105,7 @@ def test_generate_sql_quotes_string_default():
             ],
         )
     ]
-    sql = generate_sql(tables)
+    sql = _sql.generate_sql(tables)
     assert "default 'Hello world'" in sql
 
 
@@ -116,7 +119,7 @@ def test_generate_sql_no_quotes_numeric_default():
             ],
         )
     ]
-    sql = generate_sql(tables)
+    sql = _sql.generate_sql(tables)
     assert 'default 0' in sql
     assert 'default 1.5' in sql
     assert "default '0'" not in sql
@@ -135,7 +138,7 @@ def test_generate_sql_sql_expression_default_not_quoted():
             ],
         )
     ]
-    sql = generate_sql(tables)
+    sql = _sql.generate_sql(tables)
     assert 'default now()' in sql
     assert 'default CURRENT_TIMESTAMP' in sql
     assert 'default false' in sql
@@ -151,7 +154,7 @@ def test_generate_sql_quotes_date_default():
             ],
         )
     ]
-    sql = generate_sql(tables)
+    sql = _sql.generate_sql(tables)
     assert "default '2030-01-01'" in sql
 
 
@@ -164,5 +167,5 @@ def test_generate_sql_escapes_single_quotes_in_default():
             ],
         )
     ]
-    sql = generate_sql(tables)
+    sql = _sql.generate_sql(tables)
     assert "default 'it''s fine'" in sql

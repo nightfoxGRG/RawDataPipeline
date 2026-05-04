@@ -1,99 +1,166 @@
-from pathlib import Path
-from urllib.parse import quote
+#app.py
+import sys
+import base64
+import json
 
-from flask import Flask, Response, render_template, request, send_from_directory
+from flask import Flask, Response, g, render_template, request, send_from_directory
+from common.error import AppError
+from common.error_handler import register_error_handlers
+from common.project_paths import ProjectPaths
+from common.context_service import ContextService
+from config.db_migration_yoyo.db_migrate_config_at_start import run_migrations_on_start
+from domains.libretranslate.libretranslate_service import LibreTranslateService
+from domains.sql_generator.sql_generator_service import SqlGeneratorService
+from domains.table_config.table_config_validator import TableConfigValidator
+from domains.table_config.table_config_data_file_reader_service import TableConfigDataFileReaderService
+from domains.table_config.table_config_generator_service import TableConfigGeneratorService
+from domains.table_config.table_config_parser_service import TableConfigParserService
+from domains.users.users_service import UsersService
+from config.config_loader import get_config
+from config.db_orm_sqlalchemy.db_session_config import session_scope
 
-from services.config_generator import generate_excel_config_v2
-from services.inferrer import ALLOWED_DATA_EXTENSIONS, infer_columns, read_data_file
-from services.models import ConfigParseError
-from services.parser import parse_tables_config
-from services.sql_generator import generate_sql
-from services.upload import UploadError, read_uploaded_file
-from services.validators import validate_tables
+_SYSTEM_SCHEMA = 'system'
+
+_libretranslate = LibreTranslateService()
+_validator = TableConfigValidator()
+_reader = TableConfigDataFileReaderService(libretranslate=_libretranslate)
+_parser = TableConfigParserService(validator=_validator)
+_sql_generator = SqlGeneratorService(parser=_parser, validator=_validator)
+_table_config_generator = TableConfigGeneratorService(reader=_reader)
 
 
 def create_app() -> Flask:
-    app = Flask(__name__)
+    app = Flask(
+        __name__,
+        template_folder=str(ProjectPaths.TEMPLATES),  # папка с шаблонами
+        static_folder=str(ProjectPaths.STATIC)  # папка со статикой (если есть)
+    )
+
+    cfg = get_config()
+
+    # Определяем режим запуска: локальный (PyInstaller .exe/.app) или серверный
+    _run_mode = 'local' if getattr(sys, 'frozen', False) else 'server'
+    _project_name = cfg.get('app', {}).get('project_name', 'DataPipelinePro')
+
+    import os
+    if not os.environ.get('FLASK_TESTING'):
+        run_migrations_on_start()
+
+    register_error_handlers(app)
+
+    @app.before_request
+    def load_user_context():
+        g.current_user = None
+
+# до настройки аутентификации, для разработки и тестов можно использовать заглушку с фиксированным токеном
+        # auth_header = request.headers.get('Authorization', '')
+        # if not auth_header.lower().startswith('bearer '):
+        #     return
+        # token = auth_header.split(' ', 1)[1].strip()
+
+        def _generate_stub_token():
+            header = {"alg": "none", "typ": "JWT"}
+            payload = {"sub": "LOCAL_USER"}
+            header_b64 = base64.urlsafe_b64encode(json.dumps(header).encode()).decode().rstrip('=')
+            payload_b64 = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip('=')
+            signature = ""
+            return f"{header_b64}.{payload_b64}.{signature}"
+
+        token = _generate_stub_token()
+
+        with session_scope() as session:
+            context_service = ContextService()
+            g.current_user = context_service.load_user_context(token, session)
+
+    @app.context_processor
+    def inject_globals():
+        return {
+            'run_mode': _run_mode,
+            'project_name': _project_name,
+            'current_user': getattr(g, 'current_user', None),
+        }
 
     @app.route('/', methods=['GET'])
     def index():
-        return render_template('inferrer.html', errors=[])
+        return render_template('configurator.html')
 
-    @app.route('/sql', methods=['GET', 'POST'])
-    def sql():
-        sql_output = ''
-        errors = []
+    @app.get('/parametrizer')
+    def get_parametrizer():
+        return render_template('parametrizer.html')
 
-        if request.method == 'POST':
-            try:
-                content, filename = read_uploaded_file(request.files.get('config_file'))
-                tables = parse_tables_config(content, filename)
-                errors = validate_tables(tables)
-                if not errors:
-                    sql_output = generate_sql(tables)
-            except (UploadError, ConfigParseError) as exc:
-                errors.append(str(exc))
+    @app.get('/router')
+    def get_router():
+        return render_template('router.html')
 
-        return render_template('index.html', sql_output=sql_output, errors=errors)
+    @app.get('/loader')
+    def get_loader():
+        return render_template('loader.html')
 
-    @app.get('/inferrer')
-    def inferrer():
-        return render_template('inferrer.html', errors=[])
+    @app.get('/analyzer')
+    def get_analyzer():
+        return render_template('analyzer.html')
 
-    @app.post('/inferrer/generate')
-    def inferrer_generate():
-        file_storage = request.files.get('data_file')
-        if file_storage is None or not file_storage.filename:
-            return render_template('inferrer.html', errors=['Не выбран файл данных.'])
-
-        filename = file_storage.filename
-        ext = Path(filename).suffix.lower()
-        if ext not in ALLOWED_DATA_EXTENSIONS:
-            allowed = ', '.join(sorted(ALLOWED_DATA_EXTENSIONS))
-            return render_template(
-                'inferrer.html',
-                errors=[f'Поддерживаются только файлы: {allowed}'],
-            )
-
-        content = file_storage.read()
-        if not content:
-            return render_template('inferrer.html', errors=['Загруженный файл пустой.'])
-
-        try:
-            table_name, headers, rows = read_data_file(content, filename)
-            columns = infer_columns(headers, rows)
-            xlsx_bytes = generate_excel_config_v2(table_name, columns)
-        except (ConfigParseError, Exception) as exc:
-            return render_template('inferrer.html', errors=[str(exc)])
-
-        download_name = f'{table_name}_config.xlsm'
-        ascii_name = download_name.encode('ascii', 'replace').decode('ascii')
-        encoded_name = quote(download_name, encoding='utf-8')
-        return Response(
-            xlsx_bytes,
-            mimetype='application/vnd.ms-excel.sheet.macroEnabled.12',
-            headers={
-                'Content-Disposition': (
-                    f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{encoded_name}"
-                ),
-            },
+    @app.get('/generator')
+    def get_generator():
+        return render_template(
+            'generator.html',
+            sql_output='',
+            add_pk=True,
+            add_package_fields=True,
         )
 
-    @app.get('/download-template')
-    def download_template():
-        static_dir = Path(app.root_path) / 'static'
+    @app.post('/sql_generator')
+    def post_sql_generator():
+        sql_output, add_pk, add_package_fields = _sql_generator.generate_sql_from_system_config(request.form)
+        return render_template(
+            'generator.html',
+            sql_output=sql_output,
+            add_pk=add_pk,
+            add_package_fields=add_package_fields,
+        )
+
+    @app.get('/configurator')
+    def get_configurator():
+        return render_template('configurator.html')
+
+    @app.post('/table_config_generator')
+    def post_table_config_generator():
+        return _table_config_generator.generate_table_config_from_data_file(request)
+
+    @app.post('/table_config_generator_from_directory')
+    def post_table_config_generator_from_directory():
+        return _table_config_generator.generate_table_config_from_directory(request)
+
+    @app.post('/table_config_upload')
+    def post_table_config_upload():
+        return _table_config_generator.upload_table_config_file(request)
+
+    @app.get('/table_config_download_system')
+    def get_table_config_download_system():
+        return _table_config_generator.download_table_config_system()
+
+    @app.get('/table_config_validate_system')
+    def get_table_config_validate_system():
+        return _table_config_generator.validate_table_config_system()
+
+    @app.post('/table_config_validate_local')
+    def post_table_config_validate_local():
+        return _table_config_generator.validate_table_config_local(request)
+
+    @app.get('/download_table_config_template')
+    def download_table_config_template():
         return send_from_directory(
-            static_dir,
+            ProjectPaths.STATIC,
             'TablesConfig.xlsm',
             as_attachment=True,
             download_name='TablesConfig.xlsm',
         )
 
-    @app.post('/download')
+    @app.post('/download_sql')
     def download_sql():
         sql_content = request.form.get('sql_output', '').strip()
         if not sql_content:
-            return render_template('index.html', errors=['SQL для скачивания не найден.'])
+            raise AppError('SQL для скачивания не найден.')
 
         return Response(
             sql_content,
@@ -103,9 +170,7 @@ def create_app() -> Flask:
 
     return app
 
-
 app = create_app()
 
-
 if __name__ == '__main__':
-    app.run(port=8080)
+    app.run(host='127.0.0.1', port=8080, debug=True, use_reloader=False)

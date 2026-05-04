@@ -6,16 +6,14 @@ from unittest.mock import patch, MagicMock
 import pytest
 from openpyxl import Workbook
 
-from services.inferrer import (
-    ALLOWED_DATA_EXTENSIONS,
-    _round_up_to_50,
-    _sanitize_code,
-    infer_columns,
-    read_data_file,
-)
-from services.config_generator import generate_excel_config_v2
-from services.models import ConfigParseError
+from common.error import AppError
+from domains.table_config.table_config_generator_service import TableConfigGeneratorService
+from domains.table_config.table_config_data_file_reader_service import TableConfigDataFileReaderService
+
 from app import create_app
+
+_reader = TableConfigDataFileReaderService()
+_generator = TableConfigGeneratorService()
 
 
 # ---------------------------------------------------------------------------
@@ -46,14 +44,14 @@ def _make_csv_bytes(headers: list, rows: list[list], encoding: str = 'utf-8') ->
 # ---------------------------------------------------------------------------
 
 def test_round_up_to_50_below_50():
-    assert _round_up_to_50(1) == 50
-    assert _round_up_to_50(50) == 50
+    assert TableConfigDataFileReaderService._round_up_to_50(1) == 50
+    assert TableConfigDataFileReaderService._round_up_to_50(50) == 50
 
 
 def test_round_up_to_50_above_50():
-    assert _round_up_to_50(51) == 100
-    assert _round_up_to_50(100) == 100
-    assert _round_up_to_50(101) == 150
+    assert TableConfigDataFileReaderService._round_up_to_50(51) == 100
+    assert TableConfigDataFileReaderService._round_up_to_50(100) == 100
+    assert TableConfigDataFileReaderService._round_up_to_50(101) == 150
 
 
 # ---------------------------------------------------------------------------
@@ -61,27 +59,27 @@ def test_round_up_to_50_above_50():
 # ---------------------------------------------------------------------------
 
 def test_sanitize_code_spaces():
-    assert _sanitize_code('First Name') == 'first_name'
+    assert _reader._sanitize_code('First Name') == 'first_name'
 
 
 def test_sanitize_code_special_chars():
-    assert _sanitize_code('col#1!') == 'col1'
+    assert _reader._sanitize_code('col#1!') == 'col1'
 
 
 def test_sanitize_code_leading_digit():
-    assert _sanitize_code('1col') == '_1col'
+    assert _reader._sanitize_code('1col') == '_1col'
 
 
 def test_sanitize_code_empty():
-    assert _sanitize_code('') == 'col'
+    assert _reader._sanitize_code('') == 'col'
 
 
 def test_sanitize_code_cyrillic():
     mock_response = MagicMock()
     mock_response.json.return_value = {'translatedText': 'User name'}
     mock_response.raise_for_status.return_value = None
-    with patch('services.inferrer.requests.post', return_value=mock_response):
-        code = _sanitize_code('Имя пользователя')
+    with patch('domains.libretranslate.libretranslate_service.requests.post', return_value=mock_response):
+        code = _reader._sanitize_code('Имя пользователя')
     # Must be non-empty and contain only lowercase ASCII-identifier chars
     assert code and code != 'col'
     assert re.match(r'^[a-z][a-z0-9_]*$', code), f'Not a valid identifier: {code!r}'
@@ -91,8 +89,8 @@ def test_sanitize_code_cyrillic_single_word():
     mock_response = MagicMock()
     mock_response.json.return_value = {'translatedText': 'Identifier'}
     mock_response.raise_for_status.return_value = None
-    with patch('services.inferrer.requests.post', return_value=mock_response):
-        code = _sanitize_code('Идентификатор')
+    with patch('domains.libretranslate.libretranslate_service.requests.post', return_value=mock_response):
+        code = _reader._sanitize_code('Идентификатор')
     assert code == 'identifier'
 
 
@@ -105,8 +103,9 @@ def test_read_data_file_excel():
         ['id', 'name', 'age'],
         [[1, 'Alice', 30], [2, 'Bob', 25]],
     )
-    table_name, headers, rows = read_data_file(content, 'users.xlsx')
+    table_name, original_name, headers, rows = _reader.read_data_file(content, 'users.xlsx')
     assert table_name == 'users'
+    assert original_name == 'users'
     assert headers == ['id', 'name', 'age']
     assert len(rows) == 2
 
@@ -116,15 +115,16 @@ def test_read_data_file_csv():
         ['product', 'price'],
         [['Apple', '1.50'], ['Banana', '0.75']],
     )
-    table_name, headers, rows = read_data_file(content, 'products.csv')
+    table_name, original_name, headers, rows = _reader.read_data_file(content, 'products.csv')
     assert table_name == 'products'
+    assert original_name == 'products'
     assert headers == ['product', 'price']
     assert len(rows) == 2
 
 
 def test_read_data_file_unsupported_extension_raises():
-    with pytest.raises(ConfigParseError, match='Неподдерживаемый формат'):
-        read_data_file(b'data', 'file.txt')
+    with pytest.raises(AppError, match='Неподдерживаемый формат'):
+        _reader.read_data_file(b'data', 'file.txt')
 
 
 # ---------------------------------------------------------------------------
@@ -134,7 +134,7 @@ def test_read_data_file_unsupported_extension_raises():
 def test_infer_integer_column():
     headers = ['qty']
     rows = [[1], [2], [100], [None]]
-    cols = infer_columns(headers, rows)
+    cols = _reader.infer_columns(headers, rows)
     assert cols[0]['db_type'] == 'integer'
     assert cols[0]['size'] is None
 
@@ -142,14 +142,14 @@ def test_infer_integer_column():
 def test_infer_bigint_column():
     headers = ['big_id']
     rows = [[3_000_000_000]]
-    cols = infer_columns(headers, rows)
+    cols = _reader.infer_columns(headers, rows)
     assert cols[0]['db_type'] == 'bigint'
 
 
 def test_infer_numeric_column():
     headers = ['price']
     rows = [['1.99'], ['0.50'], ['123.45']]
-    cols = infer_columns(headers, rows)
+    cols = _reader.infer_columns(headers, rows)
     assert cols[0]['db_type'] == 'numeric'
     assert cols[0]['size'] is not None
 
@@ -157,28 +157,28 @@ def test_infer_numeric_column():
 def test_infer_boolean_column():
     headers = ['flag']
     rows = [['true'], ['false'], ['true']]
-    cols = infer_columns(headers, rows)
+    cols = _reader.infer_columns(headers, rows)
     assert cols[0]['db_type'] == 'boolean'
 
 
 def test_infer_date_column():
     headers = ['birth_date']
     rows = [['2000-01-01'], ['1990-12-31']]
-    cols = infer_columns(headers, rows)
+    cols = _reader.infer_columns(headers, rows)
     assert cols[0]['db_type'] == 'date'
 
 
 def test_infer_timestamp_column():
     headers = ['created_at']
     rows = [['2024-01-15 10:30:00'], ['2024-06-01T08:00:00']]
-    cols = infer_columns(headers, rows)
+    cols = _reader.infer_columns(headers, rows)
     assert cols[0]['db_type'] == 'timestamp'
 
 
 def test_infer_varchar_column():
     headers = ['code']
     rows = [['ABC'], ['XYZ'], ['HELLO']]
-    cols = infer_columns(headers, rows)
+    cols = _reader.infer_columns(headers, rows)
     assert cols[0]['db_type'] == 'varchar'
     assert cols[0]['size'] == '50'
 
@@ -186,7 +186,7 @@ def test_infer_varchar_column():
 def test_infer_text_column():
     headers = ['description']
     rows = [['x' * 300]]
-    cols = infer_columns(headers, rows)
+    cols = _reader.infer_columns(headers, rows)
     assert cols[0]['db_type'] == 'text'
     assert cols[0]['size'] is None
 
@@ -194,14 +194,14 @@ def test_infer_text_column():
 def test_infer_empty_column_defaults_to_text():
     headers = ['notes']
     rows = [[None], [''], [None]]
-    cols = infer_columns(headers, rows)
+    cols = _reader.infer_columns(headers, rows)
     assert cols[0]['db_type'] == 'text'
 
 
 def test_infer_columns_preserves_label_and_code():
     headers = ['First Name']
     rows = [['Alice']]
-    cols = infer_columns(headers, rows)
+    cols = _reader.infer_columns(headers, rows)
     assert cols[0]['label'] == 'First Name'
     assert cols[0]['code'] == 'first_name'
 
@@ -219,7 +219,7 @@ def test_generate_excel_config_v2_roundtrip():
         {'code': 'name', 'label': 'Имя', 'db_type': 'varchar', 'size': '100'},
         {'code': 'score', 'label': 'Баллы', 'db_type': 'integer', 'size': None},
     ]
-    xlsx_bytes = generate_excel_config_v2('players', columns)
+    xlsx_bytes = _generator.generate_excel_config_v2('players', columns)
 
     wb = load_workbook(io.BytesIO(xlsx_bytes), keep_vba=True)
     assert 'tables_config_v2' in wb.sheetnames
@@ -239,17 +239,17 @@ def test_generate_excel_config_v2_roundtrip():
 
 def test_generate_excel_config_v2_full_pipeline():
     """Full pipeline: data file → infer → generate config → re-parse with parser."""
-    from services.parser import parse_tables_config
+    from domains.table_config.table_config_parser_service import TableConfigParserService as _P
 
     content = _make_csv_bytes(
         ['user_id', 'username', 'score'],
         [['1', 'alice', '42'], ['2', 'bob', '99']],
     )
-    table_name, headers, rows = read_data_file(content, 'stats.csv')
-    columns = infer_columns(headers, rows)
-    xlsx_bytes = generate_excel_config_v2(table_name, columns)
+    table_name, _, headers, rows = _reader.read_data_file(content, 'stats.csv')
+    columns = _reader.infer_columns(headers, rows)
+    xlsx_bytes = _generator.generate_excel_config_v2(table_name, columns)
 
-    tables = parse_tables_config(xlsx_bytes, 'stats_config.xlsx')
+    tables = _P().parse_tables_config(xlsx_bytes, 'stats_config.xlsx')
     assert len(tables) == 1
     assert tables[0].name == 'stats'
     col_names = [c.name for c in tables[0].columns]
@@ -281,7 +281,7 @@ def test_inferrer_generate_cyrillic_filename():
         'data_file': (io.BytesIO(csv_bytes), 'Данные.csv'),
     }
     response = client.post(
-        '/inferrer/generate',
+        '/table_config_generator',
         data=data,
         content_type='multipart/form-data',
     )

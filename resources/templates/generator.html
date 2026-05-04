@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ project_name }} — Генератор</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  </head>
+  <body class="mode-{{ run_mode }}">
+    {% include '_badges.html' %}
+
+    {% set active_page = 'generator' %}
+    {% include '_menu.html' %}
+    <div class="content">
+      <div class="page-header">
+        <h1>Генератор</h1>
+      </div>
+      <hr class="section-divider">
+
+      <p class="hint">Из конфигурационного файла в системе сформировать sql-запрос для создания таблиц базы данных.</p>
+      <form id="sql-form" method="post" action="{{ url_for('post_sql_generator') }}">
+        <div class="upload-buttons">
+          <button type="submit">Сформировать sql-запрос</button>
+          <a href="{{ url_for('get_table_config_download_system') }}"><button type="button">Выгрузить конфигурационный файл из системы</button></a>
+        </div>
+        <div class="checkbox-row">
+          <input type="checkbox" id="add_pk" name="add_pk" value="1" {% if add_pk %}checked{% endif %}>
+          <label for="add_pk">Добавить <code>id</code>, если первичный ключ не задан</label>
+        </div>
+        <div class="checkbox-row">
+          <input type="checkbox" id="add_package_fields" name="add_package_fields" value="1" {% if add_package_fields %}checked{% endif %}>
+          <label for="add_package_fields">Добавить <code>package_id</code> и <code>package_timestamp</code>, если отсутствуют</label>
+        </div>
+      </form>
+
+      {% if errors %}
+      <div id="page-errors" style="display:none" data-errors='{{ errors | tojson }}'></div>
+      <script>
+        document.addEventListener('DOMContentLoaded', function () {
+          var el = document.getElementById('page-errors');
+          if (el) showErrors(JSON.parse(el.dataset.errors || '[]'));
+        });
+      </script>
+      {% endif %}
+
+      {% if sql_output %}
+      <section style="margin-top: 24px; padding-bottom: 40px; max-width: var(--content-max-width);">
+        <h2>Сгенерированный SQL</h2>
+        <textarea readonly rows="16">{{ sql_output }}</textarea>
+        <form method="post" action="{{ url_for('download_sql') }}">
+          <textarea name="sql_output" hidden>{{ sql_output }}</textarea>
+          <button type="submit">Скачать .sql</button>
+        </form>
+      </section>
+      {% endif %}
+    </div>
+  </body>
+</html>

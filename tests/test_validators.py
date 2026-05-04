@@ -1,5 +1,11 @@
-from services.models import ColumnConfig, TableConfig
-from services.validators import validate_tables
+# test_validators.py
+import pytest
+
+from common.error import ValidationError
+from domains.table_config.table_config_validator import TableConfigValidator
+from domains.table_config.table_config_model import TableConfig, ColumnConfig
+
+_validator = TableConfigValidator()
 
 
 def test_validate_tables_detects_duplicates_and_reserved_words():
@@ -15,7 +21,9 @@ def test_validate_tables_detects_duplicates_and_reserved_words():
         TableConfig(name='select', columns=[ColumnConfig(name='code', db_type='varchar')]),
     ]
 
-    errors = validate_tables(tables)
+    with pytest.raises(ValidationError) as exc_info:
+        _validator.validate_tables(tables)
+    errors = exc_info.value.errors
 
     assert any('зарезервированное слово' in error for error in errors)
     assert any('дубликат колонки' in error for error in errors)
@@ -35,7 +43,7 @@ def test_validate_tables_accepts_valid_config():
         )
     ]
 
-    assert validate_tables(tables) == []
+    _validator.validate_tables(tables)
 
 
 def test_validate_default_string_type_is_always_valid():
@@ -48,7 +56,7 @@ def test_validate_default_string_type_is_always_valid():
             ],
         )
     ]
-    assert validate_tables(tables) == []
+    _validator.validate_tables(tables)
 
 
 def test_validate_default_valid_number_for_numeric_type():
@@ -62,7 +70,7 @@ def test_validate_default_valid_number_for_numeric_type():
             ],
         )
     ]
-    assert validate_tables(tables) == []
+    _validator.validate_tables(tables)
 
 
 def test_validate_default_invalid_number_for_numeric_type():
@@ -74,7 +82,9 @@ def test_validate_default_invalid_number_for_numeric_type():
             ],
         )
     ]
-    errors = validate_tables(tables)
+    with pytest.raises(ValidationError) as exc_info:
+        _validator.validate_tables(tables)
+    errors = exc_info.value.errors
     assert any('значение по умолчанию' in e and 'hello' in e for e in errors)
 
 
@@ -90,7 +100,7 @@ def test_validate_default_sql_expressions_are_always_valid():
             ],
         )
     ]
-    assert validate_tables(tables) == []
+    _validator.validate_tables(tables)
 
 
 def test_validate_default_invalid_for_boolean_type():
@@ -102,5 +112,7 @@ def test_validate_default_invalid_for_boolean_type():
             ],
         )
     ]
-    errors = validate_tables(tables)
+    with pytest.raises(ValidationError) as exc_info:
+        _validator.validate_tables(tables)
+    errors = exc_info.value.errors
     assert any('значение по умолчанию' in e and 'boolean' in e for e in errors)
