@@ -1,15 +1,15 @@
 # sql_generator_service.py
 from common.singleton_meta import SingletonMeta
 from common.error import AppError
-from domains.table_config.table_config_model import ColumnConfig, TableConfig
-from domains.sql_generator.postgres_types import (
+from domains.configurator.table_config_model import ColumnConfig, TableConfig
+from domains.generator.postgres_types import (
     is_numeric_type,
     is_quoted_type,
     is_safe_default_expression,
     looks_like_sql_expression,
 )
-from domains.table_config.table_config_parser_service import TableConfigParserService
-from domains.table_config.table_config_validator import TableConfigValidator
+from domains.configurator.table_config_parser_service import TableConfigParserService
+from domains.configurator.table_config_validator import TableConfigValidator
 from domains.minio.minio_service import MinioService
 from domains.project.project_repository import ProjectRepository
 from config.db_orm_sqlalchemy.db_session_config import session_scope

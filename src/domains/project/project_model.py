@@ -13,24 +13,31 @@ import domains.users.model.users_model  # noqa: F401 — регистрируе�
 class ProjectModel(Base):
     __tablename__ = 'project'
     __table_args__ = (
-        UniqueConstraint('schema', name='project_schema_unique'),
+        UniqueConstraint('db_setting_id', 'schema', name='idx_project_unique'),
         CheckConstraint(
             "schema NOT IN ('public', 'pg_catalog', 'information_schema', 'pg_toast', 'data_pipline_schema')",
             name='project_schema_forbidden',
         ),
+        CheckConstraint(
+            "schema ~ '^[a-z][a-z0-9_]*$'",
+            name='project_schema_lowercase',
+        ),
+        CheckConstraint(
+            'length(schema) >= 2',
+            name='project_schema_min_length',
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    code: Mapped[str] = mapped_column(String(200), nullable=False)
+    code: Mapped[str] = mapped_column(String(200), nullable=False, unique=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)
+    db_setting_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('db_setting.id'), nullable=False)
     schema: Mapped[str] = mapped_column(String(200), nullable=False)
-    db_setting_id : Mapped[int] = mapped_column(BigInteger, ForeignKey('db_setting.id'), nullable=False)
-    table_config_minio_id: Mapped[str] = mapped_column(Text, nullable=True)
+    table_config_minio_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
     created_by: Mapped[int] = mapped_column(BigInteger, ForeignKey('users.id'), nullable=False)
     updated_at: Mapped[datetime | None] = mapped_column(nullable=True)
-    updated_by: Mapped[int | None] = mapped_column(BigInteger, ForeignKey('users.id'))
-   
+    updated_by: Mapped[int | None] = mapped_column(BigInteger, ForeignKey('users.id'), nullable=True)
 
     def __repr__(self) -> str:
         return f'<ProjectModel id={self.id} schema={self.schema!r}>'

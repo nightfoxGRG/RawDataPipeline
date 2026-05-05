@@ -1,5 +1,11 @@
 #app.py
 import sys
+import os
+
+_src = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src')
+if _src not in sys.path:
+    sys.path.insert(0, _src)
+
 import base64
 import json
 
@@ -10,11 +16,11 @@ from common.project_paths import ProjectPaths
 from common.context_service import ContextService
 from config.db_migration_yoyo.db_migrate_config_at_start import run_migrations_on_start
 from domains.libretranslate.libretranslate_service import LibreTranslateService
-from domains.sql_generator.sql_generator_service import SqlGeneratorService
-from domains.table_config.table_config_validator import TableConfigValidator
-from domains.table_config.table_config_data_file_reader_service import TableConfigDataFileReaderService
-from domains.table_config.table_config_generator_service import TableConfigGeneratorService
-from domains.table_config.table_config_parser_service import TableConfigParserService
+from domains.generator.sql_generator_service import SqlGeneratorService
+from domains.configurator.table_config_validator import TableConfigValidator
+from domains.configurator.table_config_data_file_reader_service import TableConfigDataFileReaderService
+from domains.configurator.table_config_generator_service import TableConfigGeneratorService
+from domains.configurator.table_config_parser_service import TableConfigParserService
 from domains.users.users_service import UsersService
 from config.config_loader import get_config
 from config.db_orm_sqlalchemy.db_session_config import session_scope

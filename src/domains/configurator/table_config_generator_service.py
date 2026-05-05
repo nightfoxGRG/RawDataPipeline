@@ -15,14 +15,14 @@ from common.project_paths import ProjectPaths
 from config.db_orm_sqlalchemy.db_session_config import session_scope
 from domains.minio.minio_service import MinioService
 from domains.project.project_repository import ProjectRepository
-from domains.table_config.table_config_data_file_reader_service import (
+from domains.configurator.table_config_data_file_reader_service import (
     ALLOWED_DATA_EXTENSIONS,
     TableConfigDataFileReaderService,
 )
-from domains.table_config.table_config_data_file_validator import TableConfigDataFileValidator
-from domains.table_config.table_config_model import ColumnConfig, TableConfig
-from domains.table_config.table_config_parser_service import TableConfigParserService
-from domains.table_config.table_config_validator import TableConfigValidator
+from domains.configurator.table_config_data_file_validator import TableConfigDataFileValidator
+from domains.configurator.table_config_model import ColumnConfig, TableConfig
+from domains.configurator.table_config_parser_service import TableConfigParserService
+from domains.configurator.table_config_validator import TableConfigValidator
 from utils.file_util import read_uploaded_file
 
 _TEMPLATE_PATH = ProjectPaths.STATIC / 'TablesConfig.xlsm'

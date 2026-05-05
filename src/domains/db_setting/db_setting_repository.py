@@ -3,10 +3,11 @@
 
 from sqlalchemy.orm import Session
 
+from common.singleton_meta import SingletonMeta
 from domains.db_setting.db_setting_model import DbSettingModel
 
 
-class DbSettingRepository:
+class DbSettingRepository(metaclass=SingletonMeta):
 
     def __init__(self, session: Session) -> None:
         self._session = session

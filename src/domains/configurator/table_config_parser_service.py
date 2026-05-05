@@ -6,9 +6,9 @@ from pathlib import Path
 from common.singleton_meta import SingletonMeta
 from openpyxl import load_workbook
 
-from domains.table_config.table_config_model import TableConfig, ColumnConfig
+from domains.configurator.table_config_model import TableConfig, ColumnConfig
 from common.error import AppError
-from domains.table_config.table_config_validator import TableConfigValidator
+from domains.configurator.table_config_validator import TableConfigValidator
 
 TABLE_NAME_LABELS = {'наименование таблицы', 'table_name'}
 COLUMN_CODE_LABELS = {'код колонки в бд', 'column_code'}

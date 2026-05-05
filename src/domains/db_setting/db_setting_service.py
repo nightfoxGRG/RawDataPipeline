@@ -2,5 +2,8 @@
 """Сервис настроек подключения к БД."""
 
 
-class DbSettingService:
+from common.singleton_meta import SingletonMeta
+
+
+class DbSettingService(metaclass=SingletonMeta):
     pass

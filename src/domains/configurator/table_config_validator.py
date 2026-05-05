@@ -3,8 +3,8 @@ import re
 
 from common.singleton_meta import SingletonMeta
 from common.error import AppError, ValidationError
-from domains.table_config.table_config_model import TableConfig
-from domains.sql_generator.postgres_types import (
+from domains.configurator.table_config_model import TableConfig
+from domains.generator.postgres_types import (
     is_boolean_type,
     is_known_db_type,
     is_numeric_type,

@@ -2,9 +2,12 @@
 """Репозиторий проектов."""
 
 from sqlalchemy.orm import Session
+
+from common.singleton_meta import SingletonMeta
 from domains.project.project_model import ProjectModel
 
-class ProjectRepository:
+
+class ProjectRepository(metaclass=SingletonMeta):
 
     def __init__(self, session: Session) -> None:
         self._session = session
