@@ -35,16 +35,7 @@
         </button>
       </div>
 
-      <div class="checkbox-row">
-        <input type="checkbox" id="add_pk" checked>
-        <label for="add_pk">Добавить <code>id</code>, если первичный ключ не задан</label>
-      </div>
-      <div class="checkbox-row">
-        <input type="checkbox" id="add_package_fields" checked>
-        <label for="add_package_fields">Добавить <code>package_id</code> и <code>package_timestamp</code>, если отсутствуют</label>
-      </div>
-
-      <div id="spinner" class="spinner" style="display:none">
+<div id="spinner" class="spinner" style="display:none">
         <span class="spinner-icon"></span> Формирование конфига…
       </div>
 
@@ -136,10 +127,7 @@
         let needsConfirm = false;
 
         try {
-          formData.append('add_pk', document.getElementById('add_pk').checked ? '1' : '0');
-          formData.append('add_package_fields', document.getElementById('add_package_fields').checked ? '1' : '0');
-
-          const response = await fetch(url, {
+const response = await fetch(url, {
             method: 'POST',
             body: formData,
             headers: { 'Accept': 'application/json' },

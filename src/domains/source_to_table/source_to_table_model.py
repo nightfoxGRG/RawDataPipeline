@@ -3,7 +3,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, String, UniqueConstraint, func
+from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, Index, Integer, String, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from config.db_orm_sqlalchemy.db_base_config import Base
@@ -14,9 +14,13 @@ import domains.project.project_model     # noqa: F401
 class SourceToTableModel(Base):
     __tablename__ = 'source_to_table'
     __table_args__ = (
-        UniqueConstraint('project_id', 'table_name', name='idx_source_to_table_unique'),
-        UniqueConstraint('project_id', 'table_name', 'source_column', name='idx_source_to_table_source_column_unique'),
-        UniqueConstraint('project_id', 'table_name', 'table_column', name='idx_source_to_table_table_column_unique'),
+        Index('idx_source_to_table_table_column_unique', 'project_id', 'table_name', 'table_column', unique=True),
+        Index(
+            'idx_source_to_table_source_column_unique',
+            'project_id', 'table_name', 'source_column',
+            unique=True,
+            postgresql_where=text('source_column IS NOT NULL'),
+        ),
         CheckConstraint(
             "function IN ('PACKAGE_TIMESTAMP', 'PACKAGE_ID') OR function IS NULL",
             name='allowed_functions',
@@ -26,7 +30,8 @@ class SourceToTableModel(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     project_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('project.id'), nullable=False)
     table_name: Mapped[str] = mapped_column(String(200), nullable=False)
-    source_column: Mapped[str] = mapped_column(String(200), nullable=False)
+    source_column: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    source_column_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
     source_column_description: Mapped[str | None] = mapped_column(String(200), nullable=True)
     table_column: Mapped[str] = mapped_column(String(200), nullable=False)
     function: Mapped[str | None] = mapped_column(String(200), nullable=True)

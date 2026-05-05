@@ -80,7 +80,8 @@ create table source_to_table
     id                        bigint primary key not null,
     project_id                bigint             not null references project (id),
     table_name                varchar(200)       not null,
-    source_column             varchar(200)       not null,
+    source_column             varchar(200),
+    source_column_number      int,
     source_column_description varchar(200),
     table_column              varchar(200)       not null,
     function                  varchar(200),
@@ -94,6 +95,5 @@ create table source_to_table
             OR function IS NULL -- разрешаем NULL значения
         )
 );
-create unique index idx_source_to_table_unique on source_to_table (project_id, table_name);
-create unique index idx_source_to_table_source_column_unique on source_to_table (project_id, table_name, source_column);
+create unique index idx_source_to_table_source_column_unique on source_to_table (project_id, table_name, source_column) where source_column is not null;
 create unique index idx_source_to_table_table_column_unique on source_to_table (project_id, table_name, table_column);

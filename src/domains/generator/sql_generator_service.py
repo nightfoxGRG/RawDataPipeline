@@ -49,7 +49,7 @@ class SqlGeneratorService(metaclass=SingletonMeta):
             raise AppError('Проект не определён.')
 
         with session_scope() as session:
-            project = ProjectRepository(session).find_by_id(project_id)
+            project = ProjectRepository().find_by_id(project_id, session)
             if not project or not project.table_config_minio_id:
                 raise AppError('Конфигурационный файл в системе отсутствует.')
             content = self._minio.download_bytes(_TC_BUCKET, project.table_config_minio_id)
@@ -84,7 +84,7 @@ class SqlGeneratorService(metaclass=SingletonMeta):
             raise AppError('Рабочая БД не определена для текущего пользователя.')
 
         with session_scope() as session:
-            project = ProjectRepository(session).find_by_id(project_id)
+            project = ProjectRepository().find_by_id(project_id, session)
             if not project or not project.table_config_minio_id:
                 raise AppError('Конфигурационный файл в системе отсутствует.')
             content = self._minio.download_bytes(_TC_BUCKET, project.table_config_minio_id)

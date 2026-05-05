@@ -22,6 +22,7 @@ from domains.configurator.table_config_data_file_reader_service import TableConf
 from domains.configurator.table_config_generator_service import TableConfigGeneratorService
 from domains.configurator.table_config_parser_service import TableConfigParserService
 from domains.users.users_service import UsersService
+from domains.source_to_table.source_to_table_service import SourceToTableService
 from config.config_loader import get_config
 from config.db_orm_sqlalchemy.db_session_config import session_scope
 
@@ -33,6 +34,7 @@ _reader = TableConfigDataFileReaderService(libretranslate=_libretranslate)
 _parser = TableConfigParserService(validator=_validator)
 _sql_generator = SqlGeneratorService(parser=_parser, validator=_validator)
 _table_config_generator = TableConfigGeneratorService(reader=_reader)
+_source_to_table_service = SourceToTableService(parser=_parser)
 
 
 def create_app() -> Flask:
@@ -97,6 +99,10 @@ def create_app() -> Flask:
     @app.get('/router')
     def get_router():
         return render_template('router.html')
+
+    @app.post('/source_to_table/generate_from_config')
+    def post_source_to_table_generate_from_config():
+        return _source_to_table_service.generate_mapping_from_config(request.form)
 
     @app.get('/loader')
     def get_loader():
