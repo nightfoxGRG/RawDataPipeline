@@ -12,15 +12,13 @@
     {% set active_page = 'generator' %}
     {% include '_menu.html' %}
     <div class="content">
-      <div class="page-header">
-        <h1>Генератор</h1>
-      </div>
+      <h1>Генератор</h1>
       <hr class="section-divider">
 
       <p class="hint">Из конфигурационного файла в системе сформировать sql-запрос для создания таблиц базы данных.</p>
       <form id="sql-form" method="post" action="{{ url_for('post_sql_generator') }}">
         <div class="upload-buttons">
-          <button type="submit">Сформировать sql-запрос</button>
+          <button type="submit">Сформировать sql</button>
           <a href="{{ url_for('get_table_config_download_system') }}"><button type="button">Выгрузить конфигурационный файл из системы</button></a>
         </div>
         <div class="checkbox-row">
@@ -44,15 +42,145 @@
       {% endif %}
 
       {% if sql_output %}
-      <section style="margin-top: 24px; padding-bottom: 40px; max-width: var(--content-max-width);">
-        <h2>Сгенерированный SQL</h2>
-        <textarea readonly rows="16">{{ sql_output }}</textarea>
-        <form method="post" action="{{ url_for('download_sql') }}">
+      <hr class="section-divider" style="margin-top:20px">
+      <div class="upload-buttons" style="margin-bottom:10px;max-width:var(--content-max-width)">
+        <button type="button" class="btn-danger" onclick="openExecConfirm()">Выполнить sql запрос</button>
+        <form method="post" action="{{ url_for('download_sql') }}" style="margin:0">
           <textarea name="sql_output" hidden>{{ sql_output }}</textarea>
           <button type="submit">Скачать .sql</button>
         </form>
-      </section>
+      </div>
+      <textarea readonly rows="20" style="max-width:var(--content-max-width)">{{ sql_output }}</textarea>
       {% endif %}
+
     </div>
+
+    {% if sql_output %}
+    <div id="exec-confirm-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeExecConfirm()">
+      <div class="modal">
+        <div class="modal-header">
+          <h2 class="modal-title">Внимание!</h2>
+          <button type="button" class="modal-close" onclick="closeExecConfirm()">&#x2715;</button>
+        </div>
+        <div class="modal-divider"></div>
+        <div class="modal-body">
+          <p class="modal-desc">При выполнении запроса в базе данных будут удалены текущие таблицы. Продолжить?</p>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-modal-cancel" onclick="closeExecConfirm()">Нет</button>
+          <button type="button" class="btn-modal-primary" id="exec-confirm-yes" onclick="runExec(false)">Да</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="schema-missing-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeSchemaMissing()">
+      <div class="modal">
+        <div class="modal-header">
+          <h2 class="modal-title">Схема не найдена</h2>
+          <button type="button" class="modal-close" onclick="closeSchemaMissing()">&#x2715;</button>
+        </div>
+        <div class="modal-divider"></div>
+        <div class="modal-body">
+          <p class="modal-desc" id="schema-missing-desc"></p>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-modal-cancel" onclick="closeSchemaMissing()">Нет</button>
+          <button type="button" class="btn-modal-primary" id="schema-create-yes" onclick="runExec(true)">Создать и выполнить</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="exec-success-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeExecSuccess()">
+      <div class="modal">
+        <div class="modal-header">
+          <h2 class="modal-title">Готово</h2>
+          <button type="button" class="modal-close" onclick="closeExecSuccess()">&#x2715;</button>
+        </div>
+        <div class="modal-divider"></div>
+        <div class="modal-body">
+          <p class="modal-desc">SQL успешно выполнен в рабочей БД.</p>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-modal-primary" onclick="closeExecSuccess()">Закрыть</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="exec-spinner" class="spinner" style="display:none;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:1100">
+      <span class="spinner-icon"></span> Выполнение sql…
+    </div>
+
+    <script>
+      function openExecConfirm() {
+        document.getElementById('exec-confirm-overlay').style.display = 'flex';
+      }
+      function closeExecConfirm() {
+        document.getElementById('exec-confirm-overlay').style.display = 'none';
+      }
+      function openSchemaMissing(schema) {
+        document.getElementById('schema-missing-desc').textContent =
+          'Схема "' + schema + '" не найдена в рабочей базе данных. Создать схему и выполнить SQL?';
+        document.getElementById('schema-missing-overlay').style.display = 'flex';
+      }
+      function closeSchemaMissing() {
+        document.getElementById('schema-missing-overlay').style.display = 'none';
+      }
+      function openExecSuccess() {
+        document.getElementById('exec-success-overlay').style.display = 'flex';
+      }
+      function closeExecSuccess() {
+        document.getElementById('exec-success-overlay').style.display = 'none';
+      }
+
+      async function runExec(createSchema) {
+        closeExecConfirm();
+        closeSchemaMissing();
+        closeAllToasts();
+
+        var spinner = document.getElementById('exec-spinner');
+        spinner.style.display = 'flex';
+        var confirmBtn = document.getElementById('exec-confirm-yes');
+        var createBtn = document.getElementById('schema-create-yes');
+        if (confirmBtn) confirmBtn.disabled = true;
+        if (createBtn) createBtn.disabled = true;
+        try {
+          var formData = new FormData();
+          formData.append('add_pk', document.getElementById('add_pk').checked ? '1' : '0');
+          formData.append('add_package_fields', document.getElementById('add_package_fields').checked ? '1' : '0');
+          if (createSchema) formData.append('create_schema', '1');
+          var response = await fetch('{{ url_for("post_sql_execute") }}', {
+            method: 'POST',
+            body: formData,
+            headers: { 'Accept': 'application/json' },
+          });
+          var data = await response.json();
+          if (data.success) {
+            openExecSuccess();
+          } else if (data.schema_missing) {
+            openSchemaMissing(data.schema);
+          } else {
+            var messages = Array.isArray(data.errors) ? data.errors : [data.error || 'Неизвестная ошибка'];
+            showErrors(messages);
+          }
+        } catch (e) {
+          showErrors(['Ошибка соединения: ' + e.message]);
+        } finally {
+          spinner.style.display = 'none';
+          if (confirmBtn) confirmBtn.disabled = false;
+          if (createBtn) createBtn.disabled = false;
+        }
+      }
+
+      document.addEventListener('keydown', function (e) {
+        if (e.key !== 'Escape') return;
+        var successEl = document.getElementById('exec-success-overlay');
+        if (successEl && successEl.style.display !== 'none') { closeExecSuccess(); return; }
+        var schemaEl = document.getElementById('schema-missing-overlay');
+        if (schemaEl && schemaEl.style.display !== 'none') { closeSchemaMissing(); return; }
+        var execEl = document.getElementById('exec-confirm-overlay');
+        if (execEl && execEl.style.display !== 'none') { closeExecConfirm(); return; }
+      });
+    </script>
+    {% endif %}
   </body>
 </html>

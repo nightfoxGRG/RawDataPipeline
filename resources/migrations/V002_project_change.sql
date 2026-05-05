@@ -1,1 +1,0 @@
-alter table project add column table_config_minio_id text;

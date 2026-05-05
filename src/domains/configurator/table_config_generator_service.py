@@ -15,14 +15,14 @@ from common.project_paths import ProjectPaths
 from config.db_orm_sqlalchemy.db_session_config import session_scope
 from domains.minio.minio_service import MinioService
 from domains.project.project_repository import ProjectRepository
-from domains.table_config.table_config_data_file_reader_service import (
+from domains.configurator.table_config_data_file_reader_service import (
     ALLOWED_DATA_EXTENSIONS,
     TableConfigDataFileReaderService,
 )
-from domains.table_config.table_config_data_file_validator import TableConfigDataFileValidator
-from domains.table_config.table_config_model import ColumnConfig, TableConfig
-from domains.table_config.table_config_parser_service import TableConfigParserService
-from domains.table_config.table_config_validator import TableConfigValidator
+from domains.configurator.table_config_data_file_validator import TableConfigDataFileValidator
+from domains.configurator.table_config_model import ColumnConfig, TableConfig
+from domains.configurator.table_config_parser_service import TableConfigParserService
+from domains.configurator.table_config_validator import TableConfigValidator
 from utils.file_util import read_uploaded_file
 
 _TEMPLATE_PATH = ProjectPaths.STATIC / 'TablesConfig.xlsm'
@@ -32,10 +32,6 @@ _TC_BLOCK_STRIDE = 12
 _TC_MAX_BLOCKS = 5
 _TC_BUCKET = 'data-pipeline-table-config'
 _TC_BUCKET_ARCH = 'data-pipeline-table-config-arch'
-
-_AUTO_PK_COL = {'label': 'Ид', 'code': 'id', 'db_type': 'bigserial', 'primary_key': True}
-_PACKAGE_ID_COL = {'label': 'Пакетный ид', 'code': 'package_id', 'db_type': 'varchar'}
-_PACKAGE_TS_COL = {'label': 'Пакетный временной штамп', 'code': 'package_timestamp', 'db_type': 'timestamptz'}
 
 
 class TableConfigGeneratorService(metaclass=SingletonMeta):
@@ -77,8 +73,6 @@ class TableConfigGeneratorService(metaclass=SingletonMeta):
 
     def generate_table_config_from_data_file(self, request: Request) -> Response:
         content, filename = read_uploaded_file(request.files.get('data_file'), ALLOWED_DATA_EXTENSIONS)
-        add_pk = request.form.get('add_pk') == '1'
-        add_package_fields = request.form.get('add_package_fields') == '1'
         mode = request.form.get('mode') or None  # None | 'replace' | 'append'
 
         try:
@@ -88,7 +82,7 @@ class TableConfigGeneratorService(metaclass=SingletonMeta):
         except Exception as exc:
             raise AppError(str(exc)) from exc
 
-        return self._persist_and_respond([(table_name, original_name, columns)], add_pk, add_package_fields, mode)
+        return self._persist_and_respond([(table_name, original_name, columns)], mode)
 
     def generate_table_config_from_directory(self, request: Request) -> Response:
         files = request.files.getlist('data_files')
@@ -100,8 +94,6 @@ class TableConfigGeneratorService(metaclass=SingletonMeta):
                 f'Превышено максимальное количество файлов: {len(files)} (допустимо {_TC_MAX_BLOCKS}).'
             )
 
-        add_pk = request.form.get('add_pk') == '1'
-        add_package_fields = request.form.get('add_package_fields') == '1'
         mode = request.form.get('mode') or None
 
         tables: list[tuple[str, str, list[dict]]] = []
@@ -122,13 +114,11 @@ class TableConfigGeneratorService(metaclass=SingletonMeta):
         if errors:
             raise ValidationError(errors=errors)
 
-        return self._persist_and_respond(tables, add_pk, add_package_fields, mode)
+        return self._persist_and_respond(tables, mode)
 
     def _persist_and_respond(
         self,
         tables: list[tuple[str, str, list[dict]]],
-        add_pk: bool,
-        add_package_fields: bool,
         mode: str | None,
     ) -> Response:
         current_user = getattr(g, 'current_user', None)
@@ -141,7 +131,7 @@ class TableConfigGeneratorService(metaclass=SingletonMeta):
         object_name = f'{project_schema}_table_config_{ts}' if project_schema else f'table_config_{ts}'
 
         if not project_id:
-            xlsx_bytes = self.generate_excel_config_multi(tables, add_pk, add_package_fields)
+            xlsx_bytes = self.generate_excel_config_multi(tables)
             self._minio.upload_bytes(
                 _TC_BUCKET, object_name, xlsx_bytes,
                 content_type='application/vnd.ms-excel.sheet.macroEnabled.12',
@@ -149,8 +139,8 @@ class TableConfigGeneratorService(metaclass=SingletonMeta):
             return jsonify(success=True)
 
         with session_scope() as session:
-            projectRepository = ProjectRepository(session)
-            project = projectRepository.find_by_id(project_id)
+            _repo = ProjectRepository()
+            project = _repo.find_by_id(project_id, session)
             existing_name = project.table_config_minio_id if project else None
 
             if existing_name and not mode:
@@ -158,9 +148,9 @@ class TableConfigGeneratorService(metaclass=SingletonMeta):
 
             if mode == 'append' and existing_name:
                 existing_bytes = self._minio.download_bytes(_TC_BUCKET, existing_name)
-                xlsx_bytes = self._append_tables(existing_bytes, tables, add_pk, add_package_fields)
+                xlsx_bytes = self._append_tables(existing_bytes, tables)
             else:
-                xlsx_bytes = self.generate_excel_config_multi(tables, add_pk, add_package_fields)
+                xlsx_bytes = self.generate_excel_config_multi(tables)
 
             if existing_name:
                 try:
@@ -176,7 +166,7 @@ class TableConfigGeneratorService(metaclass=SingletonMeta):
 
             if project:
                 project.table_config_minio_id = object_name
-                projectRepository.save(project)
+                _repo.save(project, session)
 
         return jsonify(success=True)
 
@@ -203,8 +193,8 @@ class TableConfigGeneratorService(metaclass=SingletonMeta):
             return jsonify(success=True)
 
         with session_scope() as session:
-            projectRepository = ProjectRepository(session)
-            project = projectRepository.find_by_id(project_id)
+            _repo = ProjectRepository()
+            project = _repo.find_by_id(project_id, session)
             existing_name = project.table_config_minio_id if project else None
 
             if existing_name:
@@ -221,7 +211,7 @@ class TableConfigGeneratorService(metaclass=SingletonMeta):
 
             if project:
                 project.table_config_minio_id = object_name
-                projectRepository.save(project)
+                _repo.save(project, session)
 
         return jsonify(success=True)
 
@@ -233,7 +223,7 @@ class TableConfigGeneratorService(metaclass=SingletonMeta):
             raise AppError('Проект не определён.')
 
         with session_scope() as session:
-            project = ProjectRepository(session).find_by_id(project_id)
+            project = ProjectRepository().find_by_id(project_id, session)
             if not project or not project.table_config_minio_id:
                 raise AppError('Конфигурационный файл в системе отсутствует.')
             object_name = project.table_config_minio_id
@@ -249,7 +239,7 @@ class TableConfigGeneratorService(metaclass=SingletonMeta):
             raise AppError('Проект не определён.')
 
         with session_scope() as session:
-            project = ProjectRepository(session).find_by_id(project_id)
+            project = ProjectRepository().find_by_id(project_id, session)
             if not project or not project.table_config_minio_id:
                 raise AppError('Конфигурационный файл в системе отсутствует.')
             content = self._minio.download_bytes(_TC_BUCKET, project.table_config_minio_id)
@@ -274,40 +264,41 @@ class TableConfigGeneratorService(metaclass=SingletonMeta):
         self,
         existing_bytes: bytes,
         tables: list[tuple[str, str, list[dict]]],
-        add_pk: bool,
-        add_package_fields: bool,
     ) -> bytes:
-        processed = [
-            (name, original_name, self._apply_extra_columns(list(cols), add_pk, add_package_fields))
-            for name, original_name, cols in tables
-        ]
-
         template_bytes = _TEMPLATE_PATH.read_bytes()
         wb = load_workbook(BytesIO(existing_bytes), keep_vba=True)
         ws = wb['tables_config']
         wb.active = ws
 
-        existing_names = {
-            ws.cell(row=1 + i * _TC_BLOCK_STRIDE, column=2).value
-            for i in range(_TC_MAX_BLOCKS)
-            if ws.cell(row=1 + i * _TC_BLOCK_STRIDE, column=2).value is not None
-        }
-        duplicates = [name for name, _, _ in processed if name in existing_names]
-        if duplicates:
-            raise ValidationError(errors=[f'Таблица уже существует в конфигурационном файле: {", ".join(duplicates)}'])
+        # Map existing block index by table name
+        existing_blocks: dict[str, int] = {}
+        for i in range(_TC_MAX_BLOCKS):
+            name = ws.cell(row=1 + i * _TC_BLOCK_STRIDE, column=2).value
+            if name is not None:
+                existing_blocks[name] = i
 
-        start_block = self._find_first_empty_block(ws)
-        if start_block < 0:
-            raise AppError(f'Конфигурационный файл уже заполнен (максимум {_TC_MAX_BLOCKS} таблиц).')
+        to_update = [(n, o, c) for n, o, c in tables if n in existing_blocks]
+        to_add = [(n, o, c) for n, o, c in tables if n not in existing_blocks]
 
-        available = _TC_MAX_BLOCKS - start_block
-        if len(processed) > available:
+        occupied = set(existing_blocks.values())
+        free_slots = [i for i in range(_TC_MAX_BLOCKS) if i not in occupied]
+
+        if len(to_add) > len(free_slots):
             raise AppError(
-                f'Недостаточно свободных блоков: доступно {available}, передано {len(processed)}.'
+                f'Недостаточно свободных блоков: доступно {len(free_slots)}, передано {len(to_add)}.'
             )
 
-        for i, (name, original_name, cols) in enumerate(processed):
-            self._fill_tc_block(ws, 1 + (start_block + i) * _TC_BLOCK_STRIDE, name, cols, original_name)
+        # Replace existing blocks
+        for name, original_name, cols in to_update:
+            start_row = 1 + existing_blocks[name] * _TC_BLOCK_STRIDE
+            for row_offset in range(_TC_BLOCK_STRIDE):
+                for col_idx in range(2, ws.max_column + 1):
+                    ws.cell(row=start_row + row_offset, column=col_idx).value = None
+            self._fill_tc_block(ws, start_row, name, cols, original_name)
+
+        # Add new blocks to free slots
+        for slot_idx, (name, original_name, cols) in zip(free_slots, to_add):
+            self._fill_tc_block(ws, 1 + slot_idx * _TC_BLOCK_STRIDE, name, cols, original_name)
 
         all_rows = _TC_BLOCK_STRIDE * _TC_MAX_BLOCKS
         label_width = max(
@@ -330,13 +321,6 @@ class TableConfigGeneratorService(metaclass=SingletonMeta):
         wb.save(output)
         return self._restore_x14_validations(template_bytes, output.getvalue())
 
-    @staticmethod
-    def _find_first_empty_block(ws) -> int:
-        for i in range(_TC_MAX_BLOCKS):
-            if ws.cell(row=1 + i * _TC_BLOCK_STRIDE, column=2).value is None:
-                return i
-        return -1
-
     def _read_and_infer(self, content: bytes, filename: str) -> tuple[str, str, list[dict]]:
         table_name, original_name, headers, rows = self._reader.read_data_file(content, filename)
         self._validator.validate_data_file(headers, rows)
@@ -358,22 +342,12 @@ class TableConfigGeneratorService(metaclass=SingletonMeta):
             },
         )
 
-    def generate_excel_config(
-        self,
-        table_name: str,
-        columns: list[dict],
-        add_pk: bool = False,
-        add_package_fields: bool = False,
-    ) -> bytes:
-        return self.generate_excel_config_multi(
-            [(table_name, None, columns)], add_pk=add_pk, add_package_fields=add_package_fields
-        )
+    def generate_excel_config(self, table_name: str, columns: list[dict]) -> bytes:
+        return self.generate_excel_config_multi([(table_name, None, columns)])
 
     def generate_excel_config_multi(
         self,
         tables: list[tuple[str, str | None, list[dict]]],
-        add_pk: bool = False,
-        add_package_fields: bool = False,
     ) -> bytes:
         if not tables:
             raise AppError('Нет данных для формирования конфигурации.')
@@ -382,10 +356,7 @@ class TableConfigGeneratorService(metaclass=SingletonMeta):
                 f'Превышено максимальное количество таблиц: {len(tables)} (допустимо {_TC_MAX_BLOCKS}).'
             )
 
-        processed: list[tuple[str, str | None, list[dict]]] = [
-            (name, original_name, self._apply_extra_columns(list(cols), add_pk, add_package_fields))
-            for name, original_name, cols in tables
-        ]
+        processed: list[tuple[str, str | None, list[dict]]] = list(tables)
 
         wb = load_workbook(_TEMPLATE_PATH, keep_vba=True)
         template_bytes = _TEMPLATE_PATH.read_bytes()
@@ -450,15 +421,7 @@ class TableConfigGeneratorService(metaclass=SingletonMeta):
             if col_info.get('default') is not None:
                 ws.cell(row=start_row + 9, column=col_idx).value = col_info['default']
 
-    def generate_excel_config_v2(
-        self,
-        table_name: str,
-        columns: list[dict],
-        add_pk: bool = False,
-        add_package_fields: bool = False,
-    ) -> bytes:
-        columns = self._apply_extra_columns(list(columns), add_pk, add_package_fields)
-
+    def generate_excel_config_v2(self, table_name: str, columns: list[dict]) -> bytes:
         wb = load_workbook(_TEMPLATE_PATH, keep_vba=True)
         template_bytes = _TEMPLATE_PATH.read_bytes()
         ws = wb['tables_config_v2']
@@ -486,29 +449,6 @@ class TableConfigGeneratorService(metaclass=SingletonMeta):
         output = BytesIO()
         wb.save(output)
         return self._restore_x14_validations(template_bytes, output.getvalue())
-
-    @staticmethod
-    def _apply_extra_columns(columns: list[dict], add_pk: bool, add_package_fields: bool) -> list[dict]:
-        if add_pk and not any(c.get('primary_key') for c in columns):
-            columns = [_AUTO_PK_COL] + columns
-
-        if add_package_fields:
-            existing = {c['code'].lower() for c in columns}
-            need_pkg_id = 'package_id' not in existing
-            need_pkg_ts = 'package_timestamp' not in existing
-            if need_pkg_id or need_pkg_ts:
-                ref_idx = next((i for i, c in enumerate(columns) if c['code'].lower() == 'package_id'), -1)
-                if ref_idx < 0:
-                    ref_idx = next((i for i, c in enumerate(columns) if c['code'].lower() == 'id'), -1)
-                insert_at = ref_idx + 1 if ref_idx >= 0 else 0
-                pkg_cols: list[dict] = []
-                if need_pkg_id:
-                    pkg_cols.append(_PACKAGE_ID_COL)
-                if need_pkg_ts:
-                    pkg_cols.append(_PACKAGE_TS_COL)
-                columns = columns[:insert_at] + pkg_cols + columns[insert_at:]
-
-        return columns
 
     @staticmethod
     def _sheet_name_to_zip_path(workbook_xml: str, rels_xml: str) -> dict[str, str]:

@@ -3,15 +3,13 @@
 
 from sqlalchemy.orm import Session
 
+from common.singleton_meta import SingletonMeta
 from domains.users.model.user_setting_model import UserSettingModel
 
 
-class UserSettingRepository:
+class UserSettingRepository(metaclass=SingletonMeta):
 
-    def __init__(self, session: Session) -> None:
-        self._session = session
-
-    def save(self, user_setting: UserSettingModel) -> UserSettingModel:
-        merged = self._session.merge(user_setting)
-        self._session.flush()
+    def save(self, user_setting: UserSettingModel, session: Session) -> UserSettingModel:
+        merged = session.merge(user_setting)
+        session.flush()
         return merged
