@@ -19,6 +19,7 @@ class UsersRepository(metaclass=SingletonMeta):
                 u.email,
                 u.is_tech_user,
                 p.id            AS project_id,
+                p.code          AS project_code,
                 p.schema        AS project_schema,
                 p.description   AS project_description,
                 db.id           AS db_id,
@@ -29,7 +30,7 @@ class UsersRepository(metaclass=SingletonMeta):
             FROM users u
             LEFT JOIN user_setting us ON u.id = us.user_id
             LEFT JOIN project p       ON us.actual_project_id = p.id
-            LEFT JOIN db_setting db   ON us.actual_db_setting_id = db.id
+            LEFT JOIN db_setting db   ON p.db_setting_id = db.id
             WHERE u.subject_id = :subject_id
             LIMIT 1
         """), {'subject_id': subject_id}).mappings().first()

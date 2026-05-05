@@ -119,6 +119,10 @@ def create_app() -> Flask:
             add_package_fields=add_package_fields,
         )
 
+    @app.post('/sql_execute')
+    def post_sql_execute():
+        return _sql_generator.execute_sql_in_working_db(request.form)
+
     @app.get('/configurator')
     def get_configurator():
         return render_template('configurator.html')

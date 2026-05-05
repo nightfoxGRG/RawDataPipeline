@@ -21,14 +21,16 @@ class ProjectModel(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    schema: Mapped[str] = mapped_column(String(100), nullable=False)
+    code: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
-    user_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey('users.id'))
+    schema: Mapped[str] = mapped_column(String(200), nullable=False)
+    db_setting_id : Mapped[int] = mapped_column(BigInteger, ForeignKey('db_setting.id'), nullable=False)
+    table_config_minio_id: Mapped[str] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
     created_by: Mapped[int] = mapped_column(BigInteger, ForeignKey('users.id'), nullable=False)
     updated_at: Mapped[datetime | None] = mapped_column(nullable=True)
     updated_by: Mapped[int | None] = mapped_column(BigInteger, ForeignKey('users.id'))
-    table_config_minio_id: Mapped[str] = mapped_column(Text, nullable=True)
+   
 
     def __repr__(self) -> str:
         return f'<ProjectModel id={self.id} schema={self.schema!r}>'

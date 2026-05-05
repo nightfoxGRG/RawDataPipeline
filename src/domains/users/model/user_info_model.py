@@ -16,6 +16,7 @@ class UserInfoModel:
 
     # project
     project_id: int | None
+    project_code: str | None
     project_schema: str | None
     project_description: str | None
 
