@@ -26,6 +26,7 @@ class SourceToTableRepository(metaclass=SingletonMeta):
                 SourceToTableModel.project_id == project_id,
                 SourceToTableModel.table_name == table_name,
             )
+            .order_by(SourceToTableModel.source_column_order)
             .all()
         )
 

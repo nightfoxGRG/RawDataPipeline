@@ -42,15 +42,14 @@
       {% endif %}
 
       {% if sql_output %}
-      <hr class="section-divider" style="margin-top:20px">
-      <div class="upload-buttons" style="margin-bottom:10px;max-width:var(--content-max-width)">
+      <textarea readonly rows="20" style="max-width:var(--content-max-width);margin-top:20px">{{ sql_output }}</textarea>
+      <div class="upload-buttons" style="margin-top:10px;max-width:var(--content-max-width)">
         <button type="button" class="btn-danger" onclick="openExecConfirm()">Выполнить sql запрос</button>
         <form method="post" action="{{ url_for('download_sql') }}" style="margin:0">
           <textarea name="sql_output" hidden>{{ sql_output }}</textarea>
           <button type="submit">Скачать .sql</button>
         </form>
       </div>
-      <textarea readonly rows="20" style="max-width:var(--content-max-width)">{{ sql_output }}</textarea>
       {% endif %}
 
     </div>

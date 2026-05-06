@@ -23,6 +23,7 @@ from domains.configurator.table_config_generator_service import TableConfigGener
 from domains.configurator.table_config_parser_service import TableConfigParserService
 from domains.users.users_service import UsersService
 from domains.source_to_table.source_to_table_service import SourceToTableService
+from domains.source_to_table.source_to_table_schema_service import SourceToTableSchemaService
 from config.config_loader import get_config
 from config.db_orm_sqlalchemy.db_session_config import session_scope
 
@@ -35,6 +36,7 @@ _parser = TableConfigParserService(validator=_validator)
 _sql_generator = SqlGeneratorService(parser=_parser, validator=_validator)
 _table_config_generator = TableConfigGeneratorService(reader=_reader)
 _source_to_table_service = SourceToTableService(parser=_parser)
+_source_to_table_schema_service = SourceToTableSchemaService()
 
 
 def create_app() -> Flask:
@@ -103,6 +105,20 @@ def create_app() -> Flask:
     @app.post('/source_to_table/generate_from_config')
     def post_source_to_table_generate_from_config():
         return _source_to_table_service.generate_mapping_from_config(request.form)
+
+    @app.get('/source_to_table/schema/tables')
+    def get_source_to_table_schema_tables():
+        return _source_to_table_schema_service.list_project_tables()
+
+    @app.get('/source_to_table/schema/mapping')
+    def get_source_to_table_schema_mapping():
+        return _source_to_table_schema_service.get_table_mapping(
+            request.args.get('table_name', '')
+        )
+
+    @app.post('/source_to_table/schema/mapping')
+    def post_source_to_table_schema_mapping():
+        return _source_to_table_schema_service.save_mapping(request.get_json(silent=True) or {})
 
     @app.get('/loader')
     def get_loader():

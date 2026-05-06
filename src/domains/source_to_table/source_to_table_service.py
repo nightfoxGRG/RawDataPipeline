@@ -13,6 +13,7 @@ from domains.configurator.table_config_parser_service import TableConfigParserSe
 from domains.minio.minio_service import MinioService
 from domains.project.project_repository import ProjectRepository
 from domains.source_to_table.source_to_table_model import SourceToTableModel
+from domains.source_to_table.source_to_table_config_model import SourceToTableConfigModel
 
 _TC_BUCKET = 'data-pipeline-table-config'
 
@@ -56,16 +57,21 @@ class SourceToTableService(metaclass=SingletonMeta):
         try:
             with working_session_scope_base(int(db_id)) as ws:
                 table_db_columns: dict[str, list[str]] = {}
+                table_serial_cols: dict[str, set[str]] = {}
                 for table in tables:
                     rows = ws.execute(
                         sa_text(
-                            'SELECT column_name FROM information_schema.columns '
+                            'SELECT column_name, column_default FROM information_schema.columns '
                             'WHERE table_schema = :s AND table_name = :t '
                             'ORDER BY ordinal_position'
                         ),
                         {'s': project_schema, 't': table.name},
                     ).fetchall()
                     table_db_columns[table.name] = [row[0] for row in rows]
+                    table_serial_cols[table.name] = {
+                        row[0].lower() for row in rows
+                        if (row[1] or '').lower().startswith('nextval(')
+                    }
         except SQLAlchemyError as e:
             orig = getattr(e, 'orig', None)
             raise AppError(str(orig).strip() if orig else str(e).strip()) from e
@@ -89,12 +95,16 @@ class SourceToTableService(metaclass=SingletonMeta):
         records = []
         for table in tables:
             db_col_names = table_db_columns.get(table.name, [])
+            serial_cols = table_serial_cols.get(table.name, set())
             config_by_name = {col.name.lower(): col for col in table.columns}
+            config_order = {col.name.lower(): i + 1 for i, col in enumerate(table.columns)}
             for db_col in db_col_names:
                 config_col = config_by_name.get(db_col.lower())
                 col_lower = db_col.lower()
                 func_val = None
-                if col_lower == 'package_id':
+                if col_lower in serial_cols:
+                    func_val = 'SERIAL'
+                elif col_lower == 'package_id':
                     func_val = 'PACKAGE_ID'
                 elif col_lower == 'package_timestamp':
                     func_val = 'PACKAGE_TIMESTAMP'
@@ -102,6 +112,7 @@ class SourceToTableService(metaclass=SingletonMeta):
                     project_id=project_id,
                     table_name=table.name,
                     source_column=config_col.name if config_col else None,
+                    source_column_order=config_order.get(db_col.lower(), 0),
                     source_column_description=config_col.label if config_col else None,
                     table_column=db_col,
                     function=func_val,
@@ -115,6 +126,10 @@ class SourceToTableService(metaclass=SingletonMeta):
                         SourceToTableModel.project_id == project_id,
                         SourceToTableModel.table_name.in_(table_names),
                     ).delete(synchronize_session=False)
+                    session.query(SourceToTableConfigModel).filter(
+                        SourceToTableConfigModel.project_id == project_id,
+                        SourceToTableConfigModel.table_name.in_(table_names),
+                    ).delete(synchronize_session=False)
 
                 if records:
                     max_id = session.execute(
@@ -123,6 +138,33 @@ class SourceToTableService(metaclass=SingletonMeta):
                     for i, rec in enumerate(records):
                         rec.id = max_id + i + 1
                     session.add_all(records)
+
+                existing_cfg_tables = {
+                    row[0] for row in (
+                        session.query(SourceToTableConfigModel.table_name)
+                        .filter(
+                            SourceToTableConfigModel.project_id == project_id,
+                            SourceToTableConfigModel.table_name.in_(table_names),
+                        )
+                        .all()
+                    )
+                }
+                cfg_records = []
+                for table_name in table_names:
+                    if table_name not in existing_cfg_tables:
+                        cfg_records.append(SourceToTableConfigModel(
+                            project_id=project_id,
+                            table_name=table_name,
+                            map_type='MAP_BY_COLUMN_NAME',
+                        ))
+                if cfg_records:
+                    max_cfg_id = session.execute(
+                        sa_text('SELECT COALESCE(MAX(id), 0) FROM source_to_table_config')
+                    ).scalar()
+                    for i, rec in enumerate(cfg_records):
+                        rec.id = max_cfg_id + i + 1
+                    session.add_all(cfg_records)
+
         except SQLAlchemyError as e:
             orig = getattr(e, 'orig', None)
             raise AppError(str(orig).strip() if orig else str(e).strip()) from e
