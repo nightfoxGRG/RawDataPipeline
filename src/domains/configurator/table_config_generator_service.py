@@ -6,8 +6,9 @@ from io import BytesIO
 from pathlib import Path
 from urllib.parse import quote
 
+from common.context_service import ContextService
 from common.singleton_meta import SingletonMeta
-from flask import Request, Response, g, jsonify
+from flask import Request, Response, jsonify
 from openpyxl import load_workbook
 
 from common.error import AppError, ValidationError
@@ -25,7 +26,7 @@ from domains.configurator.table_config_parser_service import TableConfigParserSe
 from domains.configurator.table_config_validator import TableConfigValidator
 from utils.file_util import read_uploaded_file
 
-_TEMPLATE_PATH = ProjectPaths.STATIC / 'TablesConfig.xlsm'
+_TEMPLATE_PATH = ProjectPaths.TABLE_CONFIG_TEMPLATE
 _V2_DATA_COLS = 9
 _TC_DATA_ROWS = 10
 _TC_BLOCK_STRIDE = 12
@@ -36,19 +37,13 @@ _TC_BUCKET_ARCH = 'data-pipeline-table-config-arch'
 
 class TableConfigGeneratorService(metaclass=SingletonMeta):
 
-    def __init__(
-        self,
-        reader: TableConfigDataFileReaderService | None = None,
-        validator: TableConfigDataFileValidator | None = None,
-        minio: MinioService | None = None,
-        config_validator: TableConfigValidator | None = None,
-        config_parser: TableConfigParserService | None = None,
-    ) -> None:
-        self._reader = reader or TableConfigDataFileReaderService()
-        self._validator = validator or TableConfigDataFileValidator()
-        self._minio = minio or MinioService()
-        self._config_validator = config_validator or TableConfigValidator()
-        self._config_parser = config_parser or TableConfigParserService()
+    def __init__(self) -> None:
+        self._reader = TableConfigDataFileReaderService()
+        self._validator = TableConfigDataFileValidator()
+        self._minio = MinioService()
+        self._config_validator = TableConfigValidator()
+        self._config_parser = TableConfigParserService()
+        self._project_repository = ProjectRepository()
 
     @staticmethod
     def _to_table_configs(tables: list[tuple[str, str | None, list[dict]]]) -> list[TableConfig]:
@@ -121,16 +116,14 @@ class TableConfigGeneratorService(metaclass=SingletonMeta):
         tables: list[tuple[str, str, list[dict]]],
         mode: str | None,
     ) -> Response:
-        current_user = getattr(g, 'current_user', None)
-        project_id = getattr(current_user, 'project_id', None) if current_user else None
-        project_schema = getattr(current_user, 'project_schema', None) if current_user else None
+        user = ContextService.get_user_info()
 
         self._config_validator.validate_tables(self._to_table_configs(tables))
 
         ts = datetime.now().strftime('%Y%m%d_%H%M%S')
-        object_name = f'{project_schema}_table_config_{ts}' if project_schema else f'table_config_{ts}'
+        object_name = f'{user.project_schema}_table_config_{ts}' if user.project_schema else f'table_config_{ts}'
 
-        if not project_id:
+        if not user.project_id:
             xlsx_bytes = self.generate_excel_config_multi(tables)
             self._minio.upload_bytes(
                 _TC_BUCKET, object_name, xlsx_bytes,
@@ -139,8 +132,7 @@ class TableConfigGeneratorService(metaclass=SingletonMeta):
             return jsonify(success=True)
 
         with session_scope() as session:
-            _repo = ProjectRepository()
-            project = _repo.find_by_id(project_id, session)
+            project = self._project_repository.find_by_id(user.project_id, session)
             existing_name = project.table_config_minio_id if project else None
 
             if existing_name and not mode:
@@ -166,7 +158,7 @@ class TableConfigGeneratorService(metaclass=SingletonMeta):
 
             if project:
                 project.table_config_minio_id = object_name
-                _repo.save(project, session)
+                self._project_repository.save(project, session)
 
         return jsonify(success=True)
 
@@ -178,14 +170,12 @@ class TableConfigGeneratorService(metaclass=SingletonMeta):
         if not content:
             raise AppError('Загруженный файл пуст.')
 
-        current_user = getattr(g, 'current_user', None)
-        project_id = getattr(current_user, 'project_id', None) if current_user else None
-        project_schema = getattr(current_user, 'project_schema', None) if current_user else None
+        user = ContextService.get_user_info()
 
         ts = datetime.now().strftime('%Y%m%d_%H%M%S')
-        object_name = f'{project_schema}_table_config_{ts}' if project_schema else f'table_config_{ts}'
+        object_name = f'{user.project_schema}_table_config_{ts}' if user.project_schema else f'table_config_{ts}'
 
-        if not project_id:
+        if not user.project_id:
             self._minio.upload_bytes(
                 _TC_BUCKET, object_name, content,
                 content_type='application/vnd.ms-excel.sheet.macroEnabled.12',
@@ -193,8 +183,7 @@ class TableConfigGeneratorService(metaclass=SingletonMeta):
             return jsonify(success=True)
 
         with session_scope() as session:
-            _repo = ProjectRepository()
-            project = _repo.find_by_id(project_id, session)
+            project = self._project_repository.find_by_id(user.project_id, session)
             existing_name = project.table_config_minio_id if project else None
 
             if existing_name:
@@ -211,19 +200,17 @@ class TableConfigGeneratorService(metaclass=SingletonMeta):
 
             if project:
                 project.table_config_minio_id = object_name
-                _repo.save(project, session)
+                self._project_repository.save(project, session)
 
         return jsonify(success=True)
 
     def download_table_config_system(self) -> Response:
-        current_user = getattr(g, 'current_user', None)
-        project_id = getattr(current_user, 'project_id', None) if current_user else None
-
-        if not project_id:
+        user = ContextService.get_user_info()
+        if not user.project_id:
             raise AppError('Проект не определён.')
 
         with session_scope() as session:
-            project = ProjectRepository().find_by_id(project_id, session)
+            project = self._project_repository.find_by_id(user.project_id, session)
             if not project or not project.table_config_minio_id:
                 raise AppError('Конфигурационный файл в системе отсутствует.')
             object_name = project.table_config_minio_id
@@ -232,14 +219,12 @@ class TableConfigGeneratorService(metaclass=SingletonMeta):
         return self._build_xlsm_response(content, f'{object_name}.xlsm')
 
     def validate_table_config_system(self) -> Response:
-        current_user = getattr(g, 'current_user', None)
-        project_id = getattr(current_user, 'project_id', None) if current_user else None
-
-        if not project_id:
+        user = ContextService.get_user_info()
+        if not user.project_id:
             raise AppError('Проект не определён.')
 
         with session_scope() as session:
-            project = ProjectRepository().find_by_id(project_id, session)
+            project = self._project_repository.find_by_id(user.project_id, session)
             if not project or not project.table_config_minio_id:
                 raise AppError('Конфигурационный файл в системе отсутствует.')
             content = self._minio.download_bytes(_TC_BUCKET, project.table_config_minio_id)

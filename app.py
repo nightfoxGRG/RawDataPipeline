@@ -15,12 +15,8 @@ from common.error_handler import register_error_handlers
 from common.project_paths import ProjectPaths
 from common.context_service import ContextService
 from config.db_migration_yoyo.db_migrate_config_at_start import run_migrations_on_start
-from domains.libretranslate.libretranslate_service import LibreTranslateService
 from domains.generator.sql_generator_service import SqlGeneratorService
-from domains.configurator.table_config_validator import TableConfigValidator
-from domains.configurator.table_config_data_file_reader_service import TableConfigDataFileReaderService
 from domains.configurator.table_config_generator_service import TableConfigGeneratorService
-from domains.configurator.table_config_parser_service import TableConfigParserService
 from domains.users.users_service import UsersService
 from domains.source_to_table.source_to_table_service import SourceToTableService
 from domains.source_to_table.source_to_table_schema_service import SourceToTableSchemaService
@@ -29,13 +25,9 @@ from config.db_orm_sqlalchemy.db_session_config import session_scope
 
 _SYSTEM_SCHEMA = 'system'
 
-_libretranslate = LibreTranslateService()
-_validator = TableConfigValidator()
-_reader = TableConfigDataFileReaderService(libretranslate=_libretranslate)
-_parser = TableConfigParserService(validator=_validator)
-_sql_generator = SqlGeneratorService(parser=_parser, validator=_validator)
-_table_config_generator = TableConfigGeneratorService(reader=_reader)
-_source_to_table_service = SourceToTableService(parser=_parser)
+_sql_generator = SqlGeneratorService()
+_table_config_generator = TableConfigGeneratorService()
+_source_to_table_service = SourceToTableService()
 _source_to_table_schema_service = SourceToTableSchemaService()
 
 
@@ -119,6 +111,10 @@ def create_app() -> Flask:
     @app.post('/source_to_table/schema/mapping')
     def post_source_to_table_schema_mapping():
         return _source_to_table_schema_service.save_mapping(request.get_json(silent=True) or {})
+
+    @app.delete('/source_to_table/schema/mapping')
+    def delete_source_to_table_schema_mapping():
+        return _source_to_table_schema_service.delete_mapping(request.args.get('table_name', ''))
 
     @app.get('/loader')
     def get_loader():

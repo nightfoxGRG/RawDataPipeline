@@ -11,10 +11,10 @@ import re
 from contextlib import contextmanager
 from typing import Generator
 
-from flask import g
 from sqlalchemy import text
 from sqlalchemy.orm import Session, sessionmaker
 
+from common.context_service import ContextService
 from common.error import AppError
 from config.db_orm_sqlalchemy.working_db_engine_factory import (
     acquire_working_engine,
@@ -68,13 +68,11 @@ def working_session_scope(
 
 def _resolve_context(db_id: int | None, schema: str | None) -> tuple[int, str]:
     if db_id is None or schema is None:
-        current_user = getattr(g, 'current_user', None)
-        if current_user is None:
-            raise AppError('Контекст пользователя не установлен.')
+        user = ContextService.get_user_info()
         if db_id is None:
-            db_id = getattr(current_user, 'db_id', None)
+            db_id = user.db_id
         if schema is None:
-            schema = getattr(current_user, 'project_schema', None)
+            schema = user.project_schema
 
     if not db_id:
         raise AppError('Рабочая БД не определена для текущего пользователя.')

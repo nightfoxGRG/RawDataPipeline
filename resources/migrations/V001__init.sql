@@ -95,7 +95,7 @@ create table source_to_table
     source_column_number      int,
     source_column_order       int                   not null,
     source_column_description varchar(200),
-    table_column              varchar(200)          not null,
+    table_column              varchar(200),
     function                  varchar(200),
     created_at                timestamptz           not null default now(),
     created_by                bigint                not null references users (id),
@@ -107,5 +107,5 @@ create table source_to_table
             OR function IS NULL -- разрешаем NULL значения
         )
 );
-create unique index idx_source_to_table_table_column_unique on source_to_table (project_id, table_name, table_column);
+create unique index idx_source_to_table_table_column_unique on source_to_table (project_id, table_name, table_column) where table_column is not null;
 

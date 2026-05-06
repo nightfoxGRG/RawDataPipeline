@@ -430,6 +430,11 @@ button:hover, .btn-save:hover, .btn-secondary:hover {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+  align-items: center;
+}
+
+.upload-buttons button {
+  margin-top: 0;
 }
 
 /* ── Спиннер ── */
@@ -626,6 +631,8 @@ button:hover, .btn-save:hover, .btn-secondary:hover {
   font-size: 14px;
   min-width: 320px;
   background: #fff;
+  height: 32px;
+  box-sizing: border-box;
 }
 
 .mapping-schema {
@@ -648,6 +655,8 @@ button:hover, .btn-save:hover, .btn-secondary:hover {
   font-size: 13px;
   background: #fff;
   color: #555;
+  height: 32px;
+  box-sizing: border-box;
 }
 
 #schema-search-source { width: 40ch; }
@@ -782,6 +791,21 @@ button:hover, .btn-save:hover, .btn-secondary:hover {
 
 /* jsPlumb — tr должен быть position:relative для корректного anchor */
 .schema-tbl tr { position: relative; }
+
+/* Tooltip для связок */
+.conn-tooltip {
+  position: fixed;
+  background: rgba(40,40,40,0.92);
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  pointer-events: none;
+  z-index: 2000;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+  white-space: pre-line;
+}
 
 /* ── Кнопка удаления строки */
 .schema-row-del {

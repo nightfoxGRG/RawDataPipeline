@@ -1,4 +1,5 @@
 # sql_generator_service.py
+from common.context_service import ContextService
 from common.singleton_meta import SingletonMeta
 from common.error import AppError
 from domains.configurator.table_config_model import ColumnConfig, TableConfig
@@ -14,8 +15,7 @@ from domains.minio.minio_service import MinioService
 from domains.project.project_repository import ProjectRepository
 from config.db_orm_sqlalchemy.db_session_config import session_scope
 from config.db_orm_sqlalchemy.working_db_session_config import working_session_scope, working_session_scope_base
-from sqlalchemy.exc import SQLAlchemyError
-from flask import Response, g, jsonify
+from flask import Response, jsonify
 
 _TC_BUCKET = 'data-pipeline-table-config'
 _SIZED_TYPES = {'varchar', 'character varying', 'char', 'character', 'numeric', 'decimal'}
@@ -27,36 +27,29 @@ _PACKAGE_TS = ColumnConfig(name='package_timestamp', db_type='timestamptz', null
 
 class SqlGeneratorService(metaclass=SingletonMeta):
 
-    def __init__(
-        self,
-        parser: TableConfigParserService | None = None,
-        validator: TableConfigValidator | None = None,
-        minio: MinioService | None = None,
-    ) -> None:
-        self._parser = parser or TableConfigParserService()
-        self._validator = validator or TableConfigValidator()
-        self._minio = minio or MinioService()
+    def __init__(self) -> None:
+        self._parser = TableConfigParserService()
+        self._validator = TableConfigValidator()
+        self._minio = MinioService()
+        self._project_repository = ProjectRepository()
 
     def generate_sql_from_system_config(self, form) -> tuple[str, bool, bool]:
         add_pk = form.get('add_pk') == '1'
         add_package_fields = form.get('add_package_fields') == '1'
 
-        current_user = getattr(g, 'current_user', None)
-        project_id = getattr(current_user, 'project_id', None) if current_user else None
-        project_schema = getattr(current_user, 'project_schema', None) if current_user else None
-
-        if not project_id:
+        user = ContextService.get_user_info()
+        if not user.project_id:
             raise AppError('Проект не определён.')
 
         with session_scope() as session:
-            project = ProjectRepository().find_by_id(project_id, session)
+            project = self._project_repository.find_by_id(user.project_id, session)
             if not project or not project.table_config_minio_id:
                 raise AppError('Конфигурационный файл в системе отсутствует.')
             content = self._minio.download_bytes(_TC_BUCKET, project.table_config_minio_id)
 
         tables = self._parser.parse_tables_config(content, 'config.xlsm')
         self._validator.validate_tables(tables)
-        sql_output = self.generate_sql(tables, add_pk=add_pk, add_package_fields=add_package_fields, schema=project_schema)
+        sql_output = self.generate_sql(tables, add_pk=add_pk, add_package_fields=add_package_fields, schema=user.project_schema)
         return sql_output, add_pk, add_package_fields
 
     def execute_sql_in_working_db(self, form) -> Response:
@@ -73,18 +66,14 @@ class SqlGeneratorService(metaclass=SingletonMeta):
         add_package_fields = form.get('add_package_fields') == '1'
         create_schema = form.get('create_schema') == '1'
 
-        current_user = getattr(g, 'current_user', None)
-        project_id = getattr(current_user, 'project_id', None) if current_user else None
-        project_schema = getattr(current_user, 'project_schema', None) if current_user else None
-        db_id = getattr(current_user, 'db_id', None) if current_user else None
-
-        if not project_id:
+        user = ContextService.get_user_info()
+        if not user.project_id:
             raise AppError('Проект не определён.')
-        if not db_id:
+        if not user.db_id:
             raise AppError('Рабочая БД не определена для текущего пользователя.')
 
         with session_scope() as session:
-            project = ProjectRepository().find_by_id(project_id, session)
+            project = self._project_repository.find_by_id(user.project_id, session)
             if not project or not project.table_config_minio_id:
                 raise AppError('Конфигурационный файл в системе отсутствует.')
             content = self._minio.download_bytes(_TC_BUCKET, project.table_config_minio_id)
@@ -95,29 +84,24 @@ class SqlGeneratorService(metaclass=SingletonMeta):
             tables,
             add_pk=add_pk,
             add_package_fields=add_package_fields,
-            schema=project_schema,
+            schema=user.project_schema,
             for_execution=True,
         )
 
-        try:
-            with working_session_scope_base(int(db_id)) as base_session:
-                row = base_session.execute(
-                    sa_text('SELECT 1 FROM information_schema.schemata WHERE schema_name = :s'),
-                    {'s': project_schema},
-                ).fetchone()
-                schema_exists = row is not None
+        with working_session_scope_base(int(user.db_id)) as base_session:
+            row = base_session.execute(
+                sa_text('SELECT 1 FROM information_schema.schemata WHERE schema_name = :s'),
+                {'s': user.project_schema},
+            ).fetchone()
+            schema_exists = row is not None
 
-                if not schema_exists:
-                    if not create_schema:
-                        return jsonify(schema_missing=True, schema=project_schema)
-                    base_session.execute(sa_text(f'CREATE SCHEMA "{project_schema}"'))
+            if not schema_exists:
+                if not create_schema:
+                    return jsonify(schema_missing=True, schema=user.project_schema)
+                base_session.execute(sa_text(f'CREATE SCHEMA "{user.project_schema}"'))
 
-            with working_session_scope(db_id=db_id, schema=project_schema) as session:
-                session.connection().exec_driver_sql(sql_output)
-        except SQLAlchemyError as e:
-            orig = getattr(e, 'orig', None)
-            msg = str(orig).strip() if orig else str(e).strip()
-            raise AppError(msg) from e
+        with working_session_scope(db_id=user.db_id, schema=user.project_schema) as session:
+            session.connection().exec_driver_sql(sql_output)
 
         return jsonify(success=True)
 

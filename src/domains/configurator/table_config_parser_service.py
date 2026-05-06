@@ -24,8 +24,8 @@ DEFAULT_LABELS = {'значение по умолчанию', 'default'}
 
 class TableConfigParserService(metaclass=SingletonMeta):
 
-    def __init__(self, validator: TableConfigValidator | None = None) -> None:
-        self._validator = validator or TableConfigValidator()
+    def __init__(self) -> None:
+        self._validator = TableConfigValidator()
 
     def parse_tables_config(self, content: bytes, filename: str) -> list[TableConfig]:
         extension = Path(filename).suffix.lower()

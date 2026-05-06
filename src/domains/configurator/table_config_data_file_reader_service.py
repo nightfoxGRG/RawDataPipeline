@@ -24,8 +24,8 @@ _BOOL_VALUES: frozenset[str] = frozenset({'true', 'false'})
 
 class TableConfigDataFileReaderService(metaclass=SingletonMeta):
 
-    def __init__(self, libretranslate: LibreTranslateService | None = None) -> None:
-        self._libretranslate = libretranslate or LibreTranslateService()
+    def __init__(self) -> None:
+        self._libretranslate = LibreTranslateService()
 
     def read_data_file(self, content: bytes, filename: str) -> tuple[str, str, list[str], list[list]]:
         """Parse *content* from *filename* and return (table_name, original_stem, headers, rows)."""
