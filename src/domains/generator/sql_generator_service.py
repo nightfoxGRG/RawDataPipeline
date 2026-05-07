@@ -13,7 +13,6 @@ from domains.configurator.table_config_parser_service import TableConfigParserSe
 from domains.configurator.table_config_validator import TableConfigValidator
 from domains.minio.minio_service import MinioService
 from domains.project.project_repository import ProjectRepository
-from config.db_orm_sqlalchemy.db_session_config import session_scope
 from config.db_orm_sqlalchemy.working_db_session_config import working_session_scope, working_session_scope_base
 from flask import Response, jsonify
 
@@ -41,11 +40,11 @@ class SqlGeneratorService(metaclass=SingletonMeta):
         if not user.project_id:
             raise AppError('Проект не определён.')
 
-        with session_scope() as session:
-            project = self._project_repository.find_by_id(user.project_id, session)
-            if not project or not project.table_config_minio_id:
-                raise AppError('Конфигурационный файл в системе отсутствует.')
-            content = self._minio.download_bytes(_TC_BUCKET, project.table_config_minio_id)
+
+        project = self._project_repository.find_by_id(user.project_id)
+        if not project or not project.table_config_minio_id:
+            raise AppError('Конфигурационный файл в системе отсутствует.')
+        content = self._minio.download_bytes(_TC_BUCKET, project.table_config_minio_id)
 
         tables = self._parser.parse_tables_config(content, 'config.xlsm')
         self._validator.validate_tables(tables)
@@ -72,11 +71,10 @@ class SqlGeneratorService(metaclass=SingletonMeta):
         if not user.db_id:
             raise AppError('Рабочая БД не определена для текущего пользователя.')
 
-        with session_scope() as session:
-            project = self._project_repository.find_by_id(user.project_id, session)
-            if not project or not project.table_config_minio_id:
-                raise AppError('Конфигурационный файл в системе отсутствует.')
-            content = self._minio.download_bytes(_TC_BUCKET, project.table_config_minio_id)
+        project = self._project_repository.find_by_id(user.project_id)
+        if not project or not project.table_config_minio_id:
+            raise AppError('Конфигурационный файл в системе отсутствует.')
+        content = self._minio.download_bytes(_TC_BUCKET, project.table_config_minio_id)
 
         tables = self._parser.parse_tables_config(content, 'config.xlsm')
         self._validator.validate_tables(tables)

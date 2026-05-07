@@ -39,11 +39,10 @@ class SourceToTableService(metaclass=SingletonMeta):
         if not user.db_id:
             raise AppError('Рабочая БД не определена для текущего пользователя.')
 
-        with session_scope() as session:
-            project = self._project_repository.find_by_id(user.project_id, session)
-            if not project or not project.table_config_minio_id:
-                raise AppError('Конфигурационный файл в системе отсутствует.')
-            content = self._minio.download_bytes(_TC_BUCKET, project.table_config_minio_id)
+        project = self._project_repository.find_by_id(user.project_id)
+        if not project or not project.table_config_minio_id:
+            raise AppError('Конфигурационный файл в системе отсутствует.')
+        content = self._minio.download_bytes(_TC_BUCKET, project.table_config_minio_id)
 
         tables = self._parser.parse_tables_config(content, 'config.xlsm')
         if not tables:

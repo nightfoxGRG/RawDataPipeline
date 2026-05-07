@@ -3,7 +3,6 @@ import functools
 import inspect
 
 from sqlalchemy.exc import SQLAlchemyError
-
 from common.error import AppError
 
 

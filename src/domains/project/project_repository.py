@@ -3,18 +3,18 @@
 
 from sqlalchemy.orm import Session
 
-from common.db_error_handler import handle_db_errors
+from common.db_decorator.repository import repository
 from common.singleton_meta import SingletonMeta
 from domains.project.project_model import ProjectModel
 
 
-@handle_db_errors
+@repository
 class ProjectRepository(metaclass=SingletonMeta):
 
-    def find_by_id(self, project_id: int, session: Session) -> ProjectModel | None:
-        return session.get(ProjectModel, project_id)
+    def find_by_id(self, project_id: int) -> ProjectModel | None:
+        return self._session.get(ProjectModel, project_id)
 
-    def save(self, project: ProjectModel, session: Session) -> ProjectModel:
-        merged = session.merge(project)
-        session.flush()
+    def save(self, project: ProjectModel) -> ProjectModel:
+        merged = self._session.merge(project)
+        self._session.flush()
         return merged

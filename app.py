@@ -2,6 +2,8 @@
 import sys
 import os
 
+from common.db_decorator.db_context import DbContext
+
 _src = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src')
 if _src not in sys.path:
     sys.path.insert(0, _src)
@@ -17,7 +19,6 @@ from common.context_service import ContextService
 from config.db_migration_yoyo.db_migrate_config_at_start import run_migrations_on_start
 from domains.generator.sql_generator_service import SqlGeneratorService
 from domains.configurator.table_config_generator_service import TableConfigGeneratorService
-from domains.users.users_service import UsersService
 from domains.source_to_table.source_to_table_service import SourceToTableService
 from domains.source_to_table.source_to_table_schema_service import SourceToTableSchemaService
 from config.config_loader import get_config
@@ -81,6 +82,14 @@ def create_app() -> Flask:
             'project_name': _project_name,
             'current_user': getattr(g, 'current_user', None),
         }
+
+    @app.teardown_request
+    def teardown_request(error=None):
+        # Явный сброс контекста после запроса
+        g.current_user = None
+        """Очищает контекст БД после каждого запроса."""
+        if DbContext().is_active():
+            DbContext().clear()
 
     @app.route('/', methods=['GET'])
     def index():
