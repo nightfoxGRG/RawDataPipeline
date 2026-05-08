@@ -1,29 +1,18 @@
 # source_to_table_repository.py
 """Репозиторий маппингов source_to_table."""
 
-from sqlalchemy.orm import Session
-
-from common.db_error_handler import handle_db_errors
+from sqlalchemy import delete
+from common.db_decorator.repository_decorator import repository
 from common.singleton_meta import SingletonMeta
 from domains.source_to_table.source_to_table_model import SourceToTableModel
 
 
-@handle_db_errors
+@repository
 class SourceToTableRepository(metaclass=SingletonMeta):
 
-    def find_by_id(self, record_id: int, session: Session) -> SourceToTableModel | None:
-        return session.get(SourceToTableModel, record_id)
-
-    def find_by_project_id(self, project_id: int, session: Session) -> list[SourceToTableModel]:
+    def find_by_project_and_table(self, project_id: int, table_name: str) -> list[SourceToTableModel]:
         return (
-            session.query(SourceToTableModel)
-            .filter(SourceToTableModel.project_id == project_id)
-            .all()
-        )
-
-    def find_by_project_and_table(self, project_id: int, table_name: str, session: Session) -> list[SourceToTableModel]:
-        return (
-            session.query(SourceToTableModel)
+            self._session.query(SourceToTableModel)
             .filter(
                 SourceToTableModel.project_id == project_id,
                 SourceToTableModel.table_name == table_name,
@@ -32,10 +21,10 @@ class SourceToTableRepository(metaclass=SingletonMeta):
             .all()
         )
 
-    def find_existing_table_names(self, project_id: int, table_names: list[str], session: Session) -> list[str]:
+    def find_existing_table_names(self, project_id: int, table_names: list[str]) -> list[str]:
         return [
             row[0] for row in (
-                session.query(SourceToTableModel.table_name)
+                self._session.query(SourceToTableModel.table_name)
                 .filter(
                     SourceToTableModel.project_id == project_id,
                     SourceToTableModel.table_name.in_(table_names),
@@ -45,23 +34,30 @@ class SourceToTableRepository(metaclass=SingletonMeta):
             )
         ]
 
-    def delete_by_project_and_table(self, project_id: int, table_name: str, session: Session) -> None:
-        session.query(SourceToTableModel).filter(
-            SourceToTableModel.project_id == project_id,
-            SourceToTableModel.table_name == table_name,
-        ).delete(synchronize_session=False)
+    def delete_by_project_and_tables(self, project_id: int, table_names: list[str]) -> None:
+        if not table_names:
+            return  # Ничего не удаляем, если список пуст
 
-    def delete_by_project_and_tables(self, project_id: int, table_names: list[str], session: Session) -> None:
-        session.query(SourceToTableModel).filter(
-            SourceToTableModel.project_id == project_id,
-            SourceToTableModel.table_name.in_(table_names),
-        ).delete(synchronize_session=False)
+        self._session.execute(
+            delete(SourceToTableModel)
+            .where(
+                SourceToTableModel.project_id == project_id,
+                SourceToTableModel.table_name.in_(table_names)
+            )
+        )
+        self._session.flush()
 
-    def save(self, record: SourceToTableModel, session: Session) -> SourceToTableModel:
-        merged = session.merge(record)
-        session.flush()
+
+    def save(self, entity: SourceToTableModel) -> SourceToTableModel:
+        merged = self._session.merge(entity)
+        self._session.flush()
         return merged
 
-    def delete(self, record: SourceToTableModel, session: Session) -> None:
-        session.delete(record)
-        session.flush()
+    def save_all(self, entities: list[SourceToTableModel]) -> list[SourceToTableModel]:
+        if not entities:
+            return []
+
+        # bulk_save_objects автоматически обрабатывает вставку/обновление
+        self._session.bulk_save_objects(entities, return_defaults=True)
+        self._session.flush()
+        return entities

@@ -1,3 +1,4 @@
+# repository_decorator.py
 import functools
 import inspect
 from typing import Callable, cast, TypeVar, Any
@@ -8,7 +9,7 @@ from common.error import AppError
 
 F = TypeVar('F', bound=Callable[..., Any])
 
-
+# проверить как это работает, внедрить везде
 def with_session(func: F) -> F:
     """Декоратор управляет сессией и сохраняет её в self._session."""
 

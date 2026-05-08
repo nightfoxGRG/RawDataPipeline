@@ -12,9 +12,12 @@ from domains.generator.postgres_types import (
 from domains.configurator.table_config_parser_service import TableConfigParserService
 from domains.configurator.table_config_validator import TableConfigValidator
 from domains.minio.minio_service import MinioService
+from domains.project.project_model import ProjectModel
 from domains.project.project_repository import ProjectRepository
 from config.db_orm_sqlalchemy.working_db_session_config import working_session_scope, working_session_scope_base
 from flask import Response, jsonify
+
+from domains.users.model.user_info_model import UserInfoModel
 
 _TC_BUCKET = 'data-pipeline-table-config'
 _SIZED_TYPES = {'varchar', 'character varying', 'char', 'character', 'numeric', 'decimal'}
@@ -32,19 +35,25 @@ class SqlGeneratorService(metaclass=SingletonMeta):
         self._minio = MinioService()
         self._project_repository = ProjectRepository()
 
+    def _get_table_config_minio_id(self, user: UserInfoModel ) ->  str:
+
+        if not user.project_id:
+            raise AppError('Проект не определён.')
+
+        project = self._project_repository.find_by_id(user.project_id)
+        if not project or not project.table_config_minio_id:
+            raise AppError('Конфигурационный файл в системе отсутствует.')
+
+        return project.table_config_minio_id
+
+
     def generate_sql_from_system_config(self, form) -> tuple[str, bool, bool]:
         add_pk = form.get('add_pk') == '1'
         add_package_fields = form.get('add_package_fields') == '1'
 
         user = ContextService.get_user_info()
-        if not user.project_id:
-            raise AppError('Проект не определён.')
-
-
-        project = self._project_repository.find_by_id(user.project_id)
-        if not project or not project.table_config_minio_id:
-            raise AppError('Конфигурационный файл в системе отсутствует.')
-        content = self._minio.download_bytes(_TC_BUCKET, project.table_config_minio_id)
+        table_config_minio_id = self._get_table_config_minio_id(user)
+        content = self._minio.download_bytes(_TC_BUCKET,table_config_minio_id)
 
         tables = self._parser.parse_tables_config(content, 'config.xlsm')
         self._validator.validate_tables(tables)
@@ -66,15 +75,8 @@ class SqlGeneratorService(metaclass=SingletonMeta):
         create_schema = form.get('create_schema') == '1'
 
         user = ContextService.get_user_info()
-        if not user.project_id:
-            raise AppError('Проект не определён.')
-        if not user.db_id:
-            raise AppError('Рабочая БД не определена для текущего пользователя.')
-
-        project = self._project_repository.find_by_id(user.project_id)
-        if not project or not project.table_config_minio_id:
-            raise AppError('Конфигурационный файл в системе отсутствует.')
-        content = self._minio.download_bytes(_TC_BUCKET, project.table_config_minio_id)
+        table_config_minio_id = self._get_table_config_minio_id(user)
+        content = self._minio.download_bytes(_TC_BUCKET, table_config_minio_id)
 
         tables = self._parser.parse_tables_config(content, 'config.xlsm')
         self._validator.validate_tables(tables)

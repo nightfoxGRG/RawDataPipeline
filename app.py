@@ -22,7 +22,6 @@ from domains.configurator.table_config_generator_service import TableConfigGener
 from domains.source_to_table.source_to_table_service import SourceToTableService
 from domains.source_to_table.source_to_table_schema_service import SourceToTableSchemaService
 from config.config_loader import get_config
-from config.db_orm_sqlalchemy.db_session_config import session_scope
 
 _SYSTEM_SCHEMA = 'system'
 
@@ -71,9 +70,8 @@ def create_app() -> Flask:
 
         token = _generate_stub_token()
 
-        with session_scope() as session:
-            context_service = ContextService()
-            g.current_user = context_service.load_user_context(token, session)
+        context_service = ContextService()
+        g.current_user = context_service.load_user_context(token)
 
     @app.context_processor
     def inject_globals():

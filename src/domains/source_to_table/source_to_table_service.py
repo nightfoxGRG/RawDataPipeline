@@ -6,7 +6,6 @@ from flask import Response, jsonify
 from common.context_service import ContextService
 from common.singleton_meta import SingletonMeta
 from common.error import AppError
-from config.db_orm_sqlalchemy.db_session_config import session_scope
 from config.db_orm_sqlalchemy.working_db_session_config import working_session_scope_base
 from domains.configurator.table_config_parser_service import TableConfigParserService
 from domains.information_schema.information_schema_repository import InformationSchemaRepository
@@ -63,10 +62,7 @@ class SourceToTableService(metaclass=SingletonMeta):
                     if (row[1] or '').lower().startswith('nextval(')
                 }
 
-        with session_scope() as session:
-            conflicting = self._source_to_table_repository.find_existing_table_names(
-                user.project_id, table_names, session
-            )
+        conflicting = self._source_to_table_repository.find_existing_table_names(user.project_id, table_names)
 
         if conflicting and not force:
             return jsonify(conflicts=conflicting)
@@ -98,31 +94,26 @@ class SourceToTableService(metaclass=SingletonMeta):
                     created_by=user.user_id,
                 ))
 
-        with session_scope() as session:
-            if conflicting:
-                self._source_to_table_repository.delete_by_project_and_tables(
-                    user.project_id, table_names, session
-                )
-                self._source_to_table_config_repository.delete_by_project_and_tables(
-                    user.project_id, table_names, session
-                )
 
-            if records:
-                session.add_all(records)
+        if conflicting:
+            self._source_to_table_repository.delete_by_project_and_tables(user.project_id, table_names)
+            self._source_to_table_config_repository.delete_by_project_and_tables(user.project_id, table_names)
 
-            existing_cfg_tables = self._source_to_table_config_repository.find_existing_table_names(
-                user.project_id, table_names, session
+        if records:
+            self._source_to_table_repository.save_all(records)
+
+        existing_cfg_tables = self._source_to_table_config_repository.find_existing_table_names(user.project_id, table_names)
+        cfg_records = [
+            SourceToTableConfigModel(
+                project_id=user.project_id,
+                table_name=table_name,
+                map_type='MAP_BY_COLUMN_NAME',
             )
-            cfg_records = [
-                SourceToTableConfigModel(
-                    project_id=user.project_id,
-                    table_name=table_name,
-                    map_type='MAP_BY_COLUMN_NAME',
-                )
-                for table_name in table_names
-                if table_name not in existing_cfg_tables
-            ]
-            if cfg_records:
-                session.add_all(cfg_records)
+            for table_name in table_names
+            if table_name not in existing_cfg_tables
+        ]
+
+        self._source_to_table_config_repository.save_all(cfg_records)
+
 
         return jsonify(success=True, count=len(records))

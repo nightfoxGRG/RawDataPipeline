@@ -4,7 +4,7 @@ import functools
 from common.db_decorator.db_context import DbContext
 from config.db_orm_sqlalchemy.db_session_config import session_scope
 
-
+# проверить как это работает
 def transactional(func):
     """Декоратор: все операции внутри одной транзакции."""
 

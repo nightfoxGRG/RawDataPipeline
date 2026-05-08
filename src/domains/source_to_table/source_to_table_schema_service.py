@@ -6,7 +6,6 @@ from flask import Response, jsonify
 from common.context_service import ContextService
 from common.singleton_meta import SingletonMeta
 from common.error import AppError
-from config.db_orm_sqlalchemy.db_session_config import session_scope
 from config.db_orm_sqlalchemy.working_db_session_config import working_session_scope_base
 from domains.information_schema.information_schema_repository import InformationSchemaRepository
 from domains.source_to_table.source_to_table_model import SourceToTableModel
@@ -69,18 +68,18 @@ class SourceToTableSchemaService(metaclass=SingletonMeta):
                 'description': comment or '',
             })
 
-        with session_scope() as session:
-            records = self._source_to_table_repository.find_by_project_and_table(user.project_id, table_name, session)
-            mapping = [
-                {
-                    'table_column': r.table_column,
-                    'function': r.function,
-                    'source_column': r.source_column,
-                    'source_column_number': r.source_column_number,
-                    'source_column_description': r.source_column_description,
-                }
-                for r in records
-            ]
+
+        records = self._source_to_table_repository.find_by_project_and_table(user.project_id, table_name)
+        mapping = [
+            {
+                'table_column': r.table_column,
+                'function': r.function,
+                'source_column': r.source_column,
+                'source_column_number': r.source_column_number,
+                'source_column_description': r.source_column_description,
+            }
+            for r in records
+        ]
 
         has_source_name = any(m['source_column'] for m in mapping)
         has_source_number = any(m['source_column_number'] is not None for m in mapping)
@@ -115,7 +114,7 @@ class SourceToTableSchemaService(metaclass=SingletonMeta):
         if not user.project_id:
             raise AppError('Проект не определён.')
 
-        prepared: list[dict] = []
+        prepared: list[SourceToTableModel] = []
         for row in rows:
             table_column = (row.get('table_column') or '').strip() or None
             source_column = (row.get('source_column') or '').strip() or None
@@ -149,39 +148,28 @@ class SourceToTableSchemaService(metaclass=SingletonMeta):
             except (TypeError, ValueError):
                 source_column_order = 0
 
-            prepared.append({
-                'table_column': table_column,
-                'source_column': source_column,
-                'source_column_number': source_column_number,
-                'source_column_description': source_column_description,
-                'source_column_order': source_column_order,
-                'function': function,
-            })
+            prepared.append(
+                SourceToTableModel(
+                    project_id=user.project_id,
+                    table_name=table_name,
+                    source_column=source_column,
+                    source_column_number=source_column_number,
+                    source_column_order=source_column_order,
+                    source_column_description=source_column_description,
+                    table_column=table_column,
+                    function=function,
+                    created_by=user.user_id,
+                )
+            )
 
         map_type = 'MAP_BY_COLUMN_NAME' if mapping_type == 'name' else 'MAP_BY_COLUMN_NUMBER'
 
-        with session_scope() as session:
-            self._source_to_table_repository.delete_by_project_and_table(
-                user.project_id, table_name, session
-            )
+        self._source_to_table_repository.delete_by_project_and_tables(user.project_id, [table_name])
 
-            if prepared:
-                for row in prepared:
-                    session.add(SourceToTableModel(
-                        project_id=user.project_id,
-                        table_name=table_name,
-                        source_column=row['source_column'],
-                        source_column_number=row['source_column_number'],
-                        source_column_order=row['source_column_order'],
-                        source_column_description=row['source_column_description'],
-                        table_column=row['table_column'],
-                        function=row['function'],
-                        created_by=user.user_id,
-                    ))
+        if prepared:
+            self._source_to_table_repository.save_all(prepared)
 
-            self._source_to_table_config_repository.upsert_map_type(
-                user.project_id, table_name, map_type, session
-            )
+        self._source_to_table_config_repository.upsert_map_type(user.project_id, table_name, map_type)
 
         return jsonify(success=True, count=len(prepared))
 
@@ -192,11 +180,6 @@ class SourceToTableSchemaService(metaclass=SingletonMeta):
         user = ContextService.get_user_info()
         if not user.project_id:
             raise AppError('Проект не определён.')
-        with session_scope() as session:
-            self._source_to_table_repository.delete_by_project_and_table(
-                user.project_id, table_name, session
-            )
-            self._source_to_table_config_repository.delete_by_project_and_table(
-                user.project_id, table_name, session
-            )
+        self._source_to_table_repository.delete_by_project_and_tables(user.project_id, [table_name])
+        self._source_to_table_config_repository.delete_by_project_and_tables(user.project_id, [table_name])
         return jsonify(success=True)

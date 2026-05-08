@@ -24,11 +24,11 @@ class ContextService(metaclass=SingletonMeta):
             raise AppError('Пользователь не аутентифицирован.')
         return user
 
-    def load_user_context(self, token: str, session: Session) -> UserInfoModel | None:
+    def load_user_context(self, token: str) -> UserInfoModel | None:
         subject_id = self._decode_subject_from_jwt(token)
         if not subject_id:
             return None
-        return self._user_service.get_user_info(subject_id, session)
+        return self._user_service. get_user_info(subject_id)
 
     @staticmethod
     def _pad_base64(value: str) -> str:
