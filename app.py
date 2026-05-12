@@ -109,10 +109,34 @@ def create_app() -> Flask:
     def get_source_to_table_schema_tables():
         return _source_to_table_schema_service.list_project_tables()
 
+    @app.get('/source_to_table/schema/table-configs')
+    def get_source_to_table_schema_table_configs():
+        return _source_to_table_schema_service.list_table_configs(request.args.get('table_name', ''))
+
+    @app.post('/source_to_table/schema/table-configs')
+    def post_source_to_table_schema_table_config():
+        return _source_to_table_schema_service.create_table_config(
+            request.args.get('table_name', ''),
+            request.get_json(silent=True) or {},
+        )
+
+    @app.patch('/source_to_table/schema/table-configs/<int:config_id>')
+    def patch_source_to_table_schema_table_config(config_id):
+        return _source_to_table_schema_service.rename_table_config(
+            config_id,
+            request.get_json(silent=True) or {},
+        )
+
     @app.get('/source_to_table/schema/mapping')
     def get_source_to_table_schema_mapping():
+        config_id_raw = request.args.get('config_id', '')
+        try:
+            config_id = int(config_id_raw) if config_id_raw else None
+        except ValueError:
+            config_id = None
         return _source_to_table_schema_service.get_table_mapping(
-            request.args.get('table_name', '')
+            request.args.get('table_name', ''),
+            config_id,
         )
 
     @app.post('/source_to_table/schema/mapping')

@@ -1,8 +1,6 @@
 # db_setting_repository.py
 """Репозиторий настроек подключения к БД."""
 
-from sqlalchemy.orm import Session
-
 from common.db_decorator.repository_decorator import repository
 from common.singleton_meta import SingletonMeta
 from domains.db_setting.db_setting_model import DbSettingModel

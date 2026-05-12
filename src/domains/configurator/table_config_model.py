@@ -12,6 +12,7 @@ class ColumnConfig:
     foreign_key: str | None = None
     default: str | None = None
     label: str | None = None
+    function: str | None = None
 
 
 @dataclass

@@ -635,6 +635,15 @@ button:hover, .btn-save:hover, .btn-secondary:hover {
   box-sizing: border-box;
 }
 
+#schema-config-select {
+  min-width: 320px;
+  max-width: 320px;
+  width: 320px;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
 .mapping-schema {
   margin-top: 16px;
   overflow: visible;

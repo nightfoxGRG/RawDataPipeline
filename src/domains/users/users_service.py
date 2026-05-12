@@ -1,8 +1,6 @@
 # users_service.py
 """Сервис пользователей."""
 
-from sqlalchemy.orm import Session
-
 from common.singleton_meta import SingletonMeta
 from domains.users.model.user_info_model import UserInfoModel
 from domains.users.users_repository import UsersRepository

@@ -19,7 +19,6 @@
       <form id="sql-form" method="post" action="{{ url_for('post_sql_generator') }}">
         <div class="upload-buttons">
           <button type="submit">Сформировать sql</button>
-          <a href="{{ url_for('get_table_config_download_system') }}"><button type="button">Выгрузить конфигурационный файл из системы</button></a>
         </div>
         <div class="checkbox-row">
           <input type="checkbox" id="add_pk" name="add_pk" value="1" {% if add_pk %}checked{% endif %}>
@@ -27,7 +26,7 @@
         </div>
         <div class="checkbox-row">
           <input type="checkbox" id="add_package_fields" name="add_package_fields" value="1" {% if add_package_fields %}checked{% endif %}>
-          <label for="add_package_fields">Добавить <code>package_id</code> и <code>package_timestamp</code>, если отсутствуют</label>
+          <label for="add_package_fields">Добавить <code>__source</code>, <code>__package_id</code> и <code>__package_timestamp</code>, если отсутствуют</label>
         </div>
       </form>
 

@@ -77,20 +77,26 @@ create table user_setting
 
 create table source_to_table_config
 (
-    id         bigserial primary key,
-    project_id bigint       not null references project (id),
-    table_name varchar(200) not null,
-    map_type   varchar(100),
+    id          bigserial primary key,
+    project_id  bigint       not null references project (id),
+    table_name  varchar(200) not null,
+    code        varchar(200) not null,
+    description text,
+    map_type    varchar(100),
+    chunk_size  int not null,
+    created_at  timestamptz  not null default now(),
+    created_by  bigint       not null references users (id),
+    updated_at  timestamptz,
+    updated_by  bigint references users (id),
 
     CONSTRAINT allowed_map_type CHECK (map_type IN ('MAP_BY_COLUMN_NAME', 'MAP_BY_COLUMN_NUMBER'))
 );
-create unique index idx_source_to_table_config_unique on source_to_table_config (project_id, table_name);
+create unique index idx_source_to_table_config_unique on source_to_table_config (project_id, table_name, code);
 
 create table source_to_table
 (
     id                        bigserial primary key not null,
-    project_id                bigint                not null references project (id),
-    table_name                varchar(200)          not null,
+    source_to_table_config_id bigint                not null references source_to_table_config (id),
     source_column             varchar(200),
     source_column_number      int,
     source_column_order       int                   not null,
@@ -103,9 +109,9 @@ create table source_to_table
     updated_by                bigint references users (id),
 
     CONSTRAINT allowed_functions CHECK (
-        function IN ('SERIAL', 'PACKAGE_TIMESTAMP', 'PACKAGE_ID')
+        function IN ('SERIAL', 'PACKAGE_TIMESTAMP', 'PACKAGE_ID', 'SOURCE')
             OR function IS NULL -- разрешаем NULL значения
         )
 );
-create unique index idx_source_to_table_table_column_unique on source_to_table (project_id, table_name, table_column) where table_column is not null;
+create unique index idx_source_to_table_table_column_unique on source_to_table (source_to_table_config_id, table_column) where table_column is not null;
 

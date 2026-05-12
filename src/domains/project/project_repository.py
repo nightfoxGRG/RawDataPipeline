@@ -1,8 +1,6 @@
 # project_repository.py
 """Репозиторий проектов."""
 
-from sqlalchemy.orm import Session
-
 from common.db_decorator.repository_decorator import repository
 from common.singleton_meta import SingletonMeta
 from domains.project.project_model import ProjectModel

@@ -1,16 +1,22 @@
 #information_schema_repository.py
 
 from sqlalchemy import text as sa_text
-
-from common.db_error_handler import handle_db_errors
+from common.db_decorator.working_db_repository_decorator import working_db_repository
 from common.singleton_meta import SingletonMeta
 
 
-@handle_db_errors
+@working_db_repository
 class InformationSchemaRepository(metaclass=SingletonMeta):
 
-    def get_base_tables(self, schema: str, session) -> list[str]:
-        rows = session.execute(
+    def schema_exists(self, db_id: int, schema: str) -> bool:
+        row = self._session.execute(
+            sa_text('SELECT 1 FROM information_schema.schemata WHERE schema_name = :s'),
+            {'s': schema},
+        ).fetchone()
+        return row is not None
+
+    def get_base_tables(self, db_id: int, schema: str) -> list[str]:
+        rows = self._session.execute(
             sa_text(
                 'SELECT table_name FROM information_schema.tables '
                 'WHERE table_schema = :s AND table_type = \'BASE TABLE\' '
@@ -20,8 +26,8 @@ class InformationSchemaRepository(metaclass=SingletonMeta):
         ).fetchall()
         return [r[0] for r in rows]
 
-    def get_table_columns(self, schema: str, table: str, session) -> list[tuple]:
-        return session.execute(
+    def get_table_columns(self, db_id: int, schema: str, table: str) -> list[tuple]:
+        return self._session.execute(
             sa_text(
                 'SELECT c.column_name, c.ordinal_position, pgd.description, c.column_default '
                 'FROM information_schema.columns c '
@@ -35,8 +41,8 @@ class InformationSchemaRepository(metaclass=SingletonMeta):
             {'s': schema, 't': table},
         ).fetchall()
 
-    def get_column_names_with_defaults(self, schema: str, table: str, session) -> list[tuple]:
-        return session.execute(
+    def get_column_names_with_defaults(self, db_id: int, schema: str, table: str) -> list[tuple]:
+        return self._session.execute(
             sa_text(
                 'SELECT column_name, column_default FROM information_schema.columns '
                 'WHERE table_schema = :s AND table_name = :t '

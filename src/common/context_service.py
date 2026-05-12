@@ -3,7 +3,6 @@
 
 import base64
 import json
-from sqlalchemy.orm import Session
 
 from flask import g
 
