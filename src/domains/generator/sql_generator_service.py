@@ -1,6 +1,8 @@
 # sql_generator_service.py
+from common.context_service import ContextService
 from common.singleton_meta import SingletonMeta
 from common.error import AppError
+from domains.configurator.table_config_generator_service import TABLE_CONFIG_BUCKET
 from domains.configurator.table_config_model import ColumnConfig, TableConfig
 from domains.generator.postgres_types import (
     is_numeric_type,
@@ -12,51 +14,54 @@ from domains.configurator.table_config_parser_service import TableConfigParserSe
 from domains.configurator.table_config_validator import TableConfigValidator
 from domains.minio.minio_service import MinioService
 from domains.project.project_repository import ProjectRepository
-from config.db_orm_sqlalchemy.db_session_config import session_scope
-from config.db_orm_sqlalchemy.working_db_session_config import working_session_scope, working_session_scope_base
-from sqlalchemy.exc import SQLAlchemyError
-from flask import Response, g, jsonify
+from domains.working_db.information_schema_repository import InformationSchemaRepository
+from domains.working_db.working_db_repository import WorkingDbRepository
+from config.db_orm_sqlalchemy.working_db_session_config import working_session_scope_base
+from flask import Response, jsonify
 
-_TC_BUCKET = 'data-pipeline-table-config'
+from domains.users.model.user_info_model import UserInfoModel
+
 _SIZED_TYPES = {'varchar', 'character varying', 'char', 'character', 'numeric', 'decimal'}
 
 _AUTO_PK = ColumnConfig(name='id', db_type='bigserial', nullable=False, primary_key=True, label='Ид')
-_PACKAGE_ID = ColumnConfig(name='package_id', db_type='varchar', nullable=False, label='Пакетный ид')
-_PACKAGE_TS = ColumnConfig(name='package_timestamp', db_type='timestamptz', nullable=False, label='Пакетный временной штамп')
+PACKAGE_ID = ColumnConfig(name='__package_id', function = "PACKAGE_ID", db_type='varchar', size='36', nullable=False, label='Пакетный ид')
+PACKAGE_TIMESTAMP = ColumnConfig(name='__package_timestamp', function ="PACKAGE_TIMESTAMP", db_type='timestamptz', nullable=False, label='Пакетный временной штамп')
+SOURCE = ColumnConfig(name='__source', db_type='varchar', function ="SOURCE", size='200', nullable=False, label='Источник')
 
 
 class SqlGeneratorService(metaclass=SingletonMeta):
 
-    def __init__(
-        self,
-        parser: TableConfigParserService | None = None,
-        validator: TableConfigValidator | None = None,
-        minio: MinioService | None = None,
-    ) -> None:
-        self._parser = parser or TableConfigParserService()
-        self._validator = validator or TableConfigValidator()
-        self._minio = minio or MinioService()
+    def __init__(self) -> None:
+        self._parser = TableConfigParserService()
+        self._validator = TableConfigValidator()
+        self._minio = MinioService()
+        self._project_repository = ProjectRepository()
+        self._information_schema_repository = InformationSchemaRepository()
+        self._working_db_repository = WorkingDbRepository()
+
+    def _get_table_config_minio_id(self, user: UserInfoModel ) ->  str:
+
+        if not user.project_id:
+            raise AppError('Проект не определён.')
+
+        project = self._project_repository.find_by_id(user.project_id)
+        if not project or not project.table_config_minio_id:
+            raise AppError('Конфигурационный файл в системе отсутствует.')
+
+        return project.table_config_minio_id
+
 
     def generate_sql_from_system_config(self, form) -> tuple[str, bool, bool]:
         add_pk = form.get('add_pk') == '1'
         add_package_fields = form.get('add_package_fields') == '1'
 
-        current_user = getattr(g, 'current_user', None)
-        project_id = getattr(current_user, 'project_id', None) if current_user else None
-        project_schema = getattr(current_user, 'project_schema', None) if current_user else None
-
-        if not project_id:
-            raise AppError('Проект не определён.')
-
-        with session_scope() as session:
-            project = ProjectRepository().find_by_id(project_id, session)
-            if not project or not project.table_config_minio_id:
-                raise AppError('Конфигурационный файл в системе отсутствует.')
-            content = self._minio.download_bytes(_TC_BUCKET, project.table_config_minio_id)
+        user = ContextService.get_user_info()
+        table_config_minio_id = self._get_table_config_minio_id(user)
+        content = self._minio.download_bytes(TABLE_CONFIG_BUCKET, table_config_minio_id)
 
         tables = self._parser.parse_tables_config(content, 'config.xlsm')
         self._validator.validate_tables(tables)
-        sql_output = self.generate_sql(tables, add_pk=add_pk, add_package_fields=add_package_fields, schema=project_schema)
+        sql_output = self.generate_sql(tables, add_pk=add_pk, add_package_fields=add_package_fields, schema=user.project_schema)
         return sql_output, add_pk, add_package_fields
 
     def execute_sql_in_working_db(self, form) -> Response:
@@ -73,21 +78,9 @@ class SqlGeneratorService(metaclass=SingletonMeta):
         add_package_fields = form.get('add_package_fields') == '1'
         create_schema = form.get('create_schema') == '1'
 
-        current_user = getattr(g, 'current_user', None)
-        project_id = getattr(current_user, 'project_id', None) if current_user else None
-        project_schema = getattr(current_user, 'project_schema', None) if current_user else None
-        db_id = getattr(current_user, 'db_id', None) if current_user else None
-
-        if not project_id:
-            raise AppError('Проект не определён.')
-        if not db_id:
-            raise AppError('Рабочая БД не определена для текущего пользователя.')
-
-        with session_scope() as session:
-            project = ProjectRepository().find_by_id(project_id, session)
-            if not project or not project.table_config_minio_id:
-                raise AppError('Конфигурационный файл в системе отсутствует.')
-            content = self._minio.download_bytes(_TC_BUCKET, project.table_config_minio_id)
+        user = ContextService.get_user_info()
+        table_config_minio_id = self._get_table_config_minio_id(user)
+        content = self._minio.download_bytes(TABLE_CONFIG_BUCKET, table_config_minio_id)
 
         tables = self._parser.parse_tables_config(content, 'config.xlsm')
         self._validator.validate_tables(tables)
@@ -95,29 +88,19 @@ class SqlGeneratorService(metaclass=SingletonMeta):
             tables,
             add_pk=add_pk,
             add_package_fields=add_package_fields,
-            schema=project_schema,
+            schema=user.project_schema,
             for_execution=True,
         )
 
-        try:
-            with working_session_scope_base(int(db_id)) as base_session:
-                row = base_session.execute(
-                    sa_text('SELECT 1 FROM information_schema.schemata WHERE schema_name = :s'),
-                    {'s': project_schema},
-                ).fetchone()
-                schema_exists = row is not None
+        schema_exists = self._information_schema_repository.schema_exists(user.db_id, user.project_schema)
 
-                if not schema_exists:
-                    if not create_schema:
-                        return jsonify(schema_missing=True, schema=project_schema)
-                    base_session.execute(sa_text(f'CREATE SCHEMA "{project_schema}"'))
+        if not schema_exists:
+            if not create_schema:
+                return jsonify(schema_missing=True, schema=user.project_schema)
+            with working_session_scope_base(int(user.db_id)) as base_session:
+                base_session.execute(sa_text(f'CREATE SCHEMA "{user.project_schema}"'))
 
-            with working_session_scope(db_id=db_id, schema=project_schema) as session:
-                session.connection().exec_driver_sql(sql_output)
-        except SQLAlchemyError as e:
-            orig = getattr(e, 'orig', None)
-            msg = str(orig).strip() if orig else str(e).strip()
-            raise AppError(msg) from e
+        self._working_db_repository.execute_ddl(user.db_id, user.project_schema, sql_output)
 
         return jsonify(success=True)
 
@@ -138,19 +121,22 @@ class SqlGeneratorService(metaclass=SingletonMeta):
 
             if add_package_fields:
                 existing_names = {c.name.lower() for c in columns}
-                need_pkg_id = 'package_id' not in existing_names
-                need_pkg_ts = 'package_timestamp' not in existing_names
+                need_pkg_id = PACKAGE_ID.name not in existing_names
+                need_pkg_ts = PACKAGE_TIMESTAMP.name not in existing_names
+                need_source = SOURCE.name not in existing_names
 
-                if need_pkg_id or need_pkg_ts:
-                    ref_idx = next((i for i, c in enumerate(columns) if c.name.lower() == 'package_id'), -1)
+                if need_pkg_id or need_pkg_ts or need_source:
+                    ref_idx = next((i for i, c in enumerate(columns) if c.name.lower() == PACKAGE_ID.name), -1)
                     if ref_idx < 0:
                         ref_idx = next((i for i, c in enumerate(columns) if c.name.lower() == 'id'), -1)
                     insert_at = ref_idx + 1 if ref_idx >= 0 else 0
                     pkg_cols: list[ColumnConfig] = []
+                    if need_source:
+                        pkg_cols.append(SOURCE)
                     if need_pkg_id:
-                        pkg_cols.append(_PACKAGE_ID)
+                        pkg_cols.append(PACKAGE_ID)
                     if need_pkg_ts:
-                        pkg_cols.append(_PACKAGE_TS)
+                        pkg_cols.append(PACKAGE_TIMESTAMP)
                     columns = columns[:insert_at] + pkg_cols + columns[insert_at:]
 
             parts_list = [self._column_parts(col) for col in columns]

@@ -430,6 +430,11 @@ button:hover, .btn-save:hover, .btn-secondary:hover {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+  align-items: center;
+}
+
+.upload-buttons button {
+  margin-top: 0;
 }
 
 /* ── Спиннер ── */
@@ -615,5 +620,248 @@ button:hover, .btn-save:hover, .btn-secondary:hover {
   resize: vertical;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 13px;
+}
+
+/* ── Маппинг источника на таблицу ─────────────────────────────────── */
+
+.schema-table-select {
+  padding: 6px 10px;
+  border: 1px solid #cfd2d6;
+  border-radius: 6px;
+  font-size: 14px;
+  min-width: 320px;
+  background: #fff;
+  height: 32px;
+  box-sizing: border-box;
+}
+
+#schema-config-select {
+  min-width: 320px;
+  max-width: 320px;
+  width: 320px;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.mapping-schema {
+  margin-top: 16px;
+  overflow: visible;
+}
+
+.schema-toolbar {
+  display: flex;
+  gap: 220px;
+  margin-bottom: 8px;
+}
+
+.schema-toolbar-source { width: 404px; }
+
+.schema-search-input {
+  padding: 5px 10px;
+  border: 1px solid #cfd2d6;
+  border-radius: 4px;
+  font-size: 13px;
+  background: #fff;
+  color: #555;
+  height: 32px;
+  box-sizing: border-box;
+}
+
+#schema-search-source { width: 40ch; }
+#schema-search-table  { width: 40ch; }
+
+.schema-search-input::placeholder { color: #bbb; }
+
+.schema-body {
+  position: relative;
+  display: flex;
+  gap: 220px;
+  align-items: flex-start;
+  overflow: visible;
+}
+
+.schema-side {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  overflow: visible;
+}
+
+/* ── Таблица схемы */
+.schema-tbl {
+  border-collapse: collapse;
+  font-size: 13px;
+  table-layout: fixed;
+}
+
+.schema-tbl th,
+.schema-tbl td {
+  border: 1px solid #c0c4c8;
+  padding: 5px 12px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.schema-tbl th {
+  background: #e8eaed;
+  font-weight: 600;
+  color: #3c4043;
+}
+
+/* Ширины колонок */
+.schema-th-1   { width: 170px; }
+.schema-th-2   { width: 180px; }
+.schema-th-2t  { width: 200px; }
+.schema-th-3   { width: 200px; }
+.schema-th-move { width: 28px; padding: 0; }
+.schema-th-del  { width: 26px; padding: 0; }
+
+.schema-td-del  { padding: 0; text-align: center; vertical-align: middle; }
+.schema-td-move { padding: 0; text-align: center; vertical-align: middle; }
+
+.schema-row-move {
+  display: block;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  color: #bbb;
+  cursor: pointer;
+  font-size: 8px;
+  line-height: 1;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.schema-row-move:hover { color: #1976d2; }
+.schema-row-move:disabled { color: #e0e0e0; cursor: default; }
+
+/* В td источника убираем padding */
+.schema-source .schema-tbl td {
+  padding: 0;
+  vertical-align: middle;
+}
+
+/* Выбор функции в правой таблице */
+.schema-fn-select {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 4px 8px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+}
+.schema-fn-select:focus { background: #f5f8ff; }
+
+/* Обёртка фиксирует высоту строки источника — на div max-height работает */
+.schema-cell-wrap {
+  height: 27px;
+  max-height: 27px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+
+.schema-cell-move-wrap {
+  height: 27px;
+  max-height: 27px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+}
+
+/* Input заполняет ячейку с тем же padding что и обычные td */
+.schema-tbl td .schema-cell-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 12px;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 13px;
+  font-family: inherit;
+  line-height: 1;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.schema-tbl td .schema-cell-input:focus { background: #f5f8ff; }
+
+/* jsPlumb — tr должен быть position:relative для корректного anchor */
+.schema-tbl tr { position: relative; }
+
+/* Tooltip для связок */
+.conn-tooltip {
+  position: fixed;
+  background: rgba(40,40,40,0.92);
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  pointer-events: none;
+  z-index: 2000;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+  white-space: pre-line;
+}
+
+/* ── Кнопка удаления строки */
+.schema-row-del {
+  border: none;
+  background: transparent;
+  color: #ccc;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0;
+  line-height: 1;
+  display: block;
+  margin: 0 auto;
+}
+
+.schema-row-del:hover { color: #d32f2f; }
+
+/* ── jsPlumb */
+.jtk-endpoint { z-index: 3; cursor: crosshair; }
+.jtk-connector { z-index: 2; }
+.jtk-connector path { cursor: pointer; }
+.jtk-overlay { pointer-events: none; }
+
+/* ── Добавить строку */
+.schema-side-actions { margin-top: 6px; }
+
+.schema-add-btn {
+  border: none;
+  background: transparent;
+  color: #888;
+  padding: 4px 0;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.schema-add-btn:hover { color: #1976d2; }
+
+/* ── Сохранить */
+.schema-actions {
+  margin-top: 16px;
+}
+
+.schema-actions .btn-modal-primary { min-width: 160px; flex: none; }
+
+/* ── Подсветка найденной строки */
+.schema-row-highlight {
+  background: #fffde7 !important;
+  outline: 2px solid #ff9800;
+  outline-offset: -1px;
 }
 

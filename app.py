@@ -2,6 +2,8 @@
 import sys
 import os
 
+from common.db_decorator.db_context import DbContext
+
 _src = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src')
 if _src not in sys.path:
     sys.path.insert(0, _src)
@@ -15,26 +17,18 @@ from common.error_handler import register_error_handlers
 from common.project_paths import ProjectPaths
 from common.context_service import ContextService
 from config.db_migration_yoyo.db_migrate_config_at_start import run_migrations_on_start
-from domains.libretranslate.libretranslate_service import LibreTranslateService
 from domains.generator.sql_generator_service import SqlGeneratorService
-from domains.configurator.table_config_validator import TableConfigValidator
-from domains.configurator.table_config_data_file_reader_service import TableConfigDataFileReaderService
 from domains.configurator.table_config_generator_service import TableConfigGeneratorService
-from domains.configurator.table_config_parser_service import TableConfigParserService
-from domains.users.users_service import UsersService
 from domains.source_to_table.source_to_table_service import SourceToTableService
+from domains.source_to_table.source_to_table_schema_service import SourceToTableSchemaService
 from config.config_loader import get_config
-from config.db_orm_sqlalchemy.db_session_config import session_scope
 
 _SYSTEM_SCHEMA = 'system'
 
-_libretranslate = LibreTranslateService()
-_validator = TableConfigValidator()
-_reader = TableConfigDataFileReaderService(libretranslate=_libretranslate)
-_parser = TableConfigParserService(validator=_validator)
-_sql_generator = SqlGeneratorService(parser=_parser, validator=_validator)
-_table_config_generator = TableConfigGeneratorService(reader=_reader)
-_source_to_table_service = SourceToTableService(parser=_parser)
+_sql_generator = SqlGeneratorService()
+_table_config_generator = TableConfigGeneratorService()
+_source_to_table_service = SourceToTableService()
+_source_to_table_schema_service = SourceToTableSchemaService()
 
 
 def create_app() -> Flask:
@@ -76,9 +70,8 @@ def create_app() -> Flask:
 
         token = _generate_stub_token()
 
-        with session_scope() as session:
-            context_service = ContextService()
-            g.current_user = context_service.load_user_context(token, session)
+        context_service = ContextService()
+        g.current_user = context_service.load_user_context(token)
 
     @app.context_processor
     def inject_globals():
@@ -87,6 +80,14 @@ def create_app() -> Flask:
             'project_name': _project_name,
             'current_user': getattr(g, 'current_user', None),
         }
+
+    @app.teardown_request
+    def teardown_request(error=None):
+        # Явный сброс контекста после запроса
+        g.current_user = None
+        """Очищает контекст БД после каждого запроса."""
+        if DbContext().is_active():
+            DbContext().clear()
 
     @app.route('/', methods=['GET'])
     def index():
@@ -103,6 +104,48 @@ def create_app() -> Flask:
     @app.post('/source_to_table/generate_from_config')
     def post_source_to_table_generate_from_config():
         return _source_to_table_service.generate_mapping_from_config(request.form)
+
+    @app.get('/source_to_table/schema/tables')
+    def get_source_to_table_schema_tables():
+        return _source_to_table_schema_service.list_project_tables()
+
+    @app.get('/source_to_table/schema/table-configs')
+    def get_source_to_table_schema_table_configs():
+        return _source_to_table_schema_service.list_table_configs(request.args.get('table_name', ''))
+
+    @app.post('/source_to_table/schema/table-configs')
+    def post_source_to_table_schema_table_config():
+        return _source_to_table_schema_service.create_table_config(
+            request.args.get('table_name', ''),
+            request.get_json(silent=True) or {},
+        )
+
+    @app.patch('/source_to_table/schema/table-configs/<int:config_id>')
+    def patch_source_to_table_schema_table_config(config_id):
+        return _source_to_table_schema_service.rename_table_config(
+            config_id,
+            request.get_json(silent=True) or {},
+        )
+
+    @app.get('/source_to_table/schema/mapping')
+    def get_source_to_table_schema_mapping():
+        config_id_raw = request.args.get('config_id', '')
+        try:
+            config_id = int(config_id_raw) if config_id_raw else None
+        except ValueError:
+            config_id = None
+        return _source_to_table_schema_service.get_table_mapping(
+            request.args.get('table_name', ''),
+            config_id,
+        )
+
+    @app.post('/source_to_table/schema/mapping')
+    def post_source_to_table_schema_mapping():
+        return _source_to_table_schema_service.save_mapping(request.get_json(silent=True) or {})
+
+    @app.delete('/source_to_table/schema/mapping')
+    def delete_source_to_table_schema_mapping():
+        return _source_to_table_schema_service.delete_mapping(request.args.get('table_name', ''))
 
     @app.get('/loader')
     def get_loader():

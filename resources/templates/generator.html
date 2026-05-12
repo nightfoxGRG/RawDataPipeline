@@ -19,7 +19,6 @@
       <form id="sql-form" method="post" action="{{ url_for('post_sql_generator') }}">
         <div class="upload-buttons">
           <button type="submit">Сформировать sql</button>
-          <a href="{{ url_for('get_table_config_download_system') }}"><button type="button">Выгрузить конфигурационный файл из системы</button></a>
         </div>
         <div class="checkbox-row">
           <input type="checkbox" id="add_pk" name="add_pk" value="1" {% if add_pk %}checked{% endif %}>
@@ -27,7 +26,7 @@
         </div>
         <div class="checkbox-row">
           <input type="checkbox" id="add_package_fields" name="add_package_fields" value="1" {% if add_package_fields %}checked{% endif %}>
-          <label for="add_package_fields">Добавить <code>package_id</code> и <code>package_timestamp</code>, если отсутствуют</label>
+          <label for="add_package_fields">Добавить <code>__source</code>, <code>__package_id</code> и <code>__package_timestamp</code>, если отсутствуют</label>
         </div>
       </form>
 
@@ -42,15 +41,14 @@
       {% endif %}
 
       {% if sql_output %}
-      <hr class="section-divider" style="margin-top:20px">
-      <div class="upload-buttons" style="margin-bottom:10px;max-width:var(--content-max-width)">
+      <textarea readonly rows="20" style="max-width:var(--content-max-width);margin-top:20px">{{ sql_output }}</textarea>
+      <div class="upload-buttons" style="margin-top:10px;max-width:var(--content-max-width)">
         <button type="button" class="btn-danger" onclick="openExecConfirm()">Выполнить sql запрос</button>
         <form method="post" action="{{ url_for('download_sql') }}" style="margin:0">
           <textarea name="sql_output" hidden>{{ sql_output }}</textarea>
           <button type="submit">Скачать .sql</button>
         </form>
       </div>
-      <textarea readonly rows="20" style="max-width:var(--content-max-width)">{{ sql_output }}</textarea>
       {% endif %}
 
     </div>

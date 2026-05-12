@@ -12,7 +12,7 @@ from config.db_orm_sqlalchemy.db_base_config import Base
 class DbSettingModel(Base):
     __tablename__ = 'db_setting'
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('users.id'), nullable=False)
     db_label: Mapped[str] = mapped_column(String(100), nullable=False)
     host: Mapped[str] = mapped_column(Text, nullable=False)

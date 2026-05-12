@@ -16,8 +16,8 @@ from domains.minio.minio_client import MinioClient
 class MinioService(metaclass=SingletonMeta):
     """Базовые операции с MinIO: создание бакета, загрузка, скачивание, список, удаление, URL."""
 
-    def __init__(self, client: MinioClient | None = None) -> None:
-        self._client = (client or MinioClient()).client
+    def __init__(self) -> None:
+        self._client = MinioClient().client
 
     # ── Бакеты ───────────────────────────────────────────────────────────────
 

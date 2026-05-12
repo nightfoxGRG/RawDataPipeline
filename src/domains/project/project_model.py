@@ -3,7 +3,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, String, Text, UniqueConstraint, func
+from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, Index, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from config.db_orm_sqlalchemy.db_base_config import Base
@@ -13,7 +13,7 @@ import domains.users.model.users_model  # noqa: F401 — регистрируе�
 class ProjectModel(Base):
     __tablename__ = 'project'
     __table_args__ = (
-        UniqueConstraint('db_setting_id', 'schema', name='idx_project_unique'),
+        Index('idx_project_unique', 'db_setting_id', 'schema', unique=True),
         CheckConstraint(
             "schema NOT IN ('public', 'pg_catalog', 'information_schema', 'pg_toast', 'data_pipline_schema')",
             name='project_schema_forbidden',
@@ -28,7 +28,7 @@ class ProjectModel(Base):
         ),
     )
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     code: Mapped[str] = mapped_column(String(200), nullable=False, unique=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     db_setting_id: Mapped[int] = mapped_column(BigInteger, ForeignKey('db_setting.id'), nullable=False)

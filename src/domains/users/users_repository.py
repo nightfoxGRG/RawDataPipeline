@@ -2,15 +2,15 @@
 """Репозиторий пользователей."""
 
 from sqlalchemy import text
-from sqlalchemy.orm import Session
-
+from common.db_decorator.repository_decorator import repository
 from common.singleton_meta import SingletonMeta
 from domains.users.model.user_info_model import UserInfoModel
 
 
+@repository
 class UsersRepository(metaclass=SingletonMeta):
-    def find_user_info_by_subject_id(self, subject_id: str, session: Session) -> UserInfoModel | None:
-        row = session.execute(text("""
+    def find_user_info_by_subject_id(self, subject_id: str) -> UserInfoModel | None:
+        row = self._session.execute(text("""
             SELECT
                 u.id            AS user_id,
                 u.subject_id,

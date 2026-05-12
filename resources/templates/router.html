@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ project_name }} — Маршрутизатор</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="{{ url_for('static', filename='vendor/jsplumb.min.js') }}"></script>
   </head>
   <body class="mode-{{ run_mode }}">
     {% include '_badges.html' %}
@@ -20,8 +21,95 @@
       <div class="upload-buttons">
         <button type="button" onclick="startGenerateMapping()">Маппинг из конфигурационного файла</button>
       </div>
+
+      <hr class="section-divider" style="margin-top:16px">
+
+      <p class="hint">Маппинг полей источника данных на поля таблицы.</p>
+      <div class="upload-buttons">
+        <select id="schema-table-select" class="schema-table-select" onchange="onTableSelected()">
+          <option value="">— выберите таблицу —</option>
+        </select>
+      </div>
+      <div id="config-row" class="upload-buttons" style="display:none;margin-top:8px">
+        <select id="schema-config-select" class="schema-table-select" onchange="onConfigSelected()">
+          <option value="">— выберите маппинг —</option>
+        </select>
+        <button type="button" id="btn-rename-config" onclick="openRenameConfigModal()" style="display:none">Переименовать</button>
+        <button type="button" id="btn-new-mapping" onclick="openNewMappingModal()">Новый маппинг</button>
+        <button type="button" id="btn-delete-mapping" class="btn-danger" style="display:none" onclick="openDeleteMappingConfirm()">Удалить маппинг</button>
+      </div>
+      <div id="chunk-size-row" class="upload-buttons" style="display:none;margin-top:8px;align-items:center;gap:8px">
+        <label for="chunk-size-input" style="font-size:14px;white-space:nowrap">Размер блока:</label>
+        <input type="number" id="chunk-size-input" min="1" step="1" value="1000"
+               style="width:100px;padding:5px 8px;border:1px solid #cfd2d6;border-radius:6px;font-size:14px;height:32px;box-sizing:border-box">
+      </div>
+
+      <div id="mapping-schema" class="mapping-schema" style="display:none">
+        <div class="schema-toolbar">
+          <div class="schema-toolbar-source">
+            <input type="text" id="schema-search-source" class="schema-search-input" placeholder="Поиск в источнике">
+          </div>
+          <div class="schema-toolbar-table">
+            <input type="text" id="schema-search-table" class="schema-search-input" placeholder="Поиск в таблице">
+          </div>
+        </div>
+
+        <div class="schema-body" id="schema-body">
+          <div class="schema-side schema-source">
+            <table class="schema-tbl">
+              <thead>
+                <tr>
+                  <th class="schema-th-move"></th>
+                  <th id="schema-source-col1-header" class="schema-th-1">Код колонки</th>
+                  <th class="schema-th-2">Описание</th>
+                  <th class="schema-th-del"></th>
+                </tr>
+              </thead>
+              <tbody id="schema-source-rows"></tbody>
+            </table>
+            <div class="schema-side-actions">
+              <button type="button" class="schema-add-btn" onclick="addSourceRow()">+ Добавить строку</button>
+            </div>
+          </div>
+          <div class="schema-side schema-table">
+            <table class="schema-tbl">
+              <thead>
+                <tr>
+                  <th class="schema-th-1">Код колонки</th>
+                  <th class="schema-th-2t">Функция</th>
+                  <th class="schema-th-3">Описание</th>
+                </tr>
+              </thead>
+              <tbody id="schema-table-rows"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="schema-actions">
+          <button type="button" class="btn-modal-primary" onclick="saveSchema()">Сохранить</button>
+        </div>
+      </div>
     </div>
 
+    <!-- Модал выбора типа маппинга -->
+    <div id="mapping-type-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeMappingTypeModal()">
+      <div class="modal">
+        <div class="modal-header">
+          <h2 class="modal-title">Тип маппинга</h2>
+          <button type="button" class="modal-close" onclick="closeMappingTypeModal()">&#x2715;</button>
+        </div>
+        <div class="modal-divider"></div>
+        <div class="modal-body">
+          <p class="modal-desc">Настройки маппинга для выбранной таблицы отсутствуют. Выберите тип маппинга:</p>
+        </div>
+        <div class="modal-actions modal-actions--column">
+          <button type="button" class="btn-modal-primary" onclick="chooseMappingType('name')">По названию колонок источника</button>
+          <button type="button" class="btn-modal-cancel" onclick="chooseMappingType('number')">По номеру колонок источника</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Конфликт-модал генерации из конфига -->
     <div id="mapping-conflict-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeMappingConflict()">
       <div class="modal">
         <div class="modal-header">
@@ -57,11 +145,132 @@
       </div>
     </div>
 
+    <div id="delete-mapping-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeDeleteMappingConfirm()">
+      <div class="modal">
+        <div class="modal-header">
+          <h2 class="modal-title">Удалить маппинг</h2>
+          <button type="button" class="modal-close" onclick="closeDeleteMappingConfirm()">&#x2715;</button>
+        </div>
+        <div class="modal-divider"></div>
+        <div class="modal-body">
+          <p class="modal-desc">Маппинг для таблицы <strong id="delete-mapping-table-name"></strong> будет удалён. Продолжить?</p>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-modal-cancel" onclick="closeDeleteMappingConfirm()">Нет</button>
+          <button type="button" class="btn-modal-primary" id="delete-mapping-yes" onclick="confirmDeleteMapping()">Да</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Модал переименования маппинга -->
+    <div id="rename-config-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeRenameConfigModal()">
+      <div class="modal">
+        <div class="modal-header">
+          <h2 class="modal-title">Переименовать маппинг</h2>
+          <button type="button" class="modal-close" onclick="closeRenameConfigModal()">&#x2715;</button>
+        </div>
+        <div class="modal-divider"></div>
+        <div class="modal-body">
+          <label class="modal-label">Код</label>
+          <input type="text" id="rename-config-code" class="modal-input" placeholder="Код маппинга">
+          <label class="modal-label" style="margin-top:10px;display:block;margin-bottom:4px">Описание</label>
+          <textarea id="rename-config-desc" class="modal-input" placeholder="Описание (необязательно)" rows="3" style="resize:vertical;min-height:64px;margin-top:0"></textarea>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-modal-cancel" onclick="closeRenameConfigModal()">Отмена</button>
+          <button type="button" class="btn-modal-primary" id="rename-config-confirm" onclick="confirmRenameConfig()">Сохранить</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Модал создания нового маппинга -->
+    <div id="new-mapping-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeNewMappingModal()">
+      <div class="modal">
+        <div class="modal-header">
+          <h2 class="modal-title">Новый маппинг</h2>
+          <button type="button" class="modal-close" onclick="closeNewMappingModal()">&#x2715;</button>
+        </div>
+        <div class="modal-divider"></div>
+        <div class="modal-body">
+          <label class="modal-label">Код</label>
+          <input type="text" id="new-mapping-code" class="modal-input" placeholder="Код маппинга">
+          <label class="modal-label" style="margin-top:10px;display:block;margin-bottom:4px">Описание</label>
+          <textarea id="new-mapping-desc" class="modal-input" placeholder="Описание (необязательно)" rows="3" style="resize:vertical;min-height:64px;margin-top:0"></textarea>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-modal-cancel" onclick="closeNewMappingModal()">Отмена</button>
+          <button type="button" class="btn-modal-primary" id="new-mapping-confirm" onclick="confirmNewMapping()">Создать</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="unsaved-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)_cancelUnsaved()">
+      <div class="modal">
+        <div class="modal-header">
+          <h2 class="modal-title">Несохранённые изменения</h2>
+          <button type="button" class="modal-close" onclick="_cancelUnsaved()">&#x2715;</button>
+        </div>
+        <div class="modal-divider"></div>
+        <div class="modal-body">
+          <p class="modal-desc">Изменения маппинга не сохранены. Продолжить без сохранения?</p>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-modal-cancel" onclick="_cancelUnsaved()">Отмена</button>
+          <button type="button" class="btn-modal-primary" onclick="_confirmUnsaved()">Продолжить</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="conn-tooltip" class="conn-tooltip" style="display:none"></div>
+
     <div id="mapping-spinner" class="spinner" style="display:none;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:1100">
-      <span class="spinner-icon"></span> Формирование маппинга…
+      <span class="spinner-icon"></span> Загрузка…
     </div>
 
     <script>
+      // ── Маппинг из конфигурационного файла ──────────────────────────────
+
+      function openDeleteMappingConfirm() {
+        if (!schemaState.tableName) return;
+        document.getElementById('delete-mapping-table-name').textContent = schemaState.tableName;
+        document.getElementById('delete-mapping-overlay').style.display = 'flex';
+      }
+      function closeDeleteMappingConfirm() {
+        document.getElementById('delete-mapping-overlay').style.display = 'none';
+      }
+      async function confirmDeleteMapping() {
+        closeDeleteMappingConfirm();
+        var spinner = document.getElementById('mapping-spinner');
+        var btn = document.getElementById('delete-mapping-yes');
+        spinner.style.display = 'flex';
+        if (btn) btn.disabled = true;
+        try {
+          var response = await fetch(
+            '{{ url_for("delete_source_to_table_schema_mapping") }}?table_name=' + encodeURIComponent(schemaState.tableName),
+            { method: 'DELETE', headers: { 'Accept': 'application/json' } }
+          );
+          var data = await response.json();
+          if (data.success) {
+            document.getElementById('mapping-schema').style.display = 'none';
+            document.getElementById('btn-delete-mapping').style.display = 'none';
+            document.getElementById('schema-table-select').value = '';
+            schemaState.tableName = null;
+            schemaState.mappingType = null;
+            schemaState.sourceRows = [];
+            schemaState.tableRows = [];
+            schemaState.arrows = [];
+            if (jsPlumbInstance) { jsPlumbInstance.reset(); }
+          } else {
+            showErrors([data.error || 'Не удалось удалить маппинг']);
+          }
+        } catch (e) {
+          showErrors(['Ошибка соединения: ' + e.message]);
+        } finally {
+          spinner.style.display = 'none';
+          if (btn) btn.disabled = false;
+        }
+      }
+
       function closeMappingConflict() {
         document.getElementById('mapping-conflict-overlay').style.display = 'none';
       }
@@ -70,6 +279,7 @@
       }
 
       async function startGenerateMapping() {
+        if (!(await _guardUnsaved())) return;
         await _callGenerateMapping(false);
       }
 
@@ -118,12 +328,847 @@
         }
       }
 
+      // ── Интерактивная схема маппинга ────────────────────────────────────
+
+      var schemaState = {
+        tableName: null,
+        configId: null,
+        mappingType: null, // 'name' | 'number'
+        sourceRows: [],    // [{id, value, description}]
+        tableRows: [],     // [{name, function, description, id}]
+        arrows: [],        // [{sourceId, tableId}]
+        nextRowId: 1,
+        isDirty: false,
+      };
+
+      function _newRowId() { return 'r' + (schemaState.nextRowId++); }
+
+      async function loadSchemaTables() {
+        try {
+          var response = await fetch('{{ url_for("get_source_to_table_schema_tables") }}', {
+            headers: { 'Accept': 'application/json' },
+          });
+          var data = await response.json();
+          if (!response.ok || data.error) {
+            showErrors([data.error || 'Не удалось загрузить список таблиц']);
+            return;
+          }
+          var sel = document.getElementById('schema-table-select');
+          sel.innerHTML = '<option value="">— выберите таблицу —</option>';
+          (data.tables || []).forEach(function (name) {
+            var opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name;
+            sel.appendChild(opt);
+          });
+        } catch (e) {
+          showErrors(['Ошибка соединения: ' + e.message]);
+        }
+      }
+
+      async function onTableSelected() {
+        var sel = document.getElementById('schema-table-select');
+        var tableName = sel.value;
+        var configSel = document.getElementById('schema-config-select');
+        var schemaEl = document.getElementById('mapping-schema');
+
+        if (schemaState.isDirty) {
+          var ok = await _guardUnsaved();
+          if (!ok) {
+            sel.value = schemaState.tableName || '';
+            return;
+          }
+        }
+
+        schemaEl.style.display = 'none';
+        document.getElementById('btn-delete-mapping').style.display = 'none';
+        document.getElementById('btn-rename-config').style.display = 'none';
+        document.getElementById('config-row').style.display = 'none';
+        document.getElementById('chunk-size-row').style.display = 'none';
+        configSel.innerHTML = '<option value="">— выберите маппинг —</option>';
+        schemaState.tableName = null;
+        schemaState.configId = null;
+
+        if (!tableName) return;
+
+        var spinner = document.getElementById('mapping-spinner');
+        spinner.style.display = 'flex';
+        try {
+          var response = await fetch(
+            '{{ url_for("get_source_to_table_schema_table_configs") }}?table_name=' + encodeURIComponent(tableName),
+            { headers: { 'Accept': 'application/json' } }
+          );
+          var data = await response.json();
+          if (!response.ok || data.error) {
+            showErrors([data.error || 'Не удалось загрузить список маппингов']);
+            return;
+          }
+          schemaState.tableName = tableName;
+          (data.configs || []).forEach(function (cfg) {
+            var opt = document.createElement('option');
+            opt.value = cfg.id;
+            opt.textContent = cfg.code + (cfg.description ? ' — ' + cfg.description : '');
+            configSel.appendChild(opt);
+          });
+          document.getElementById('config-row').style.display = '';
+        } catch (e) {
+          showErrors(['Ошибка соединения: ' + e.message]);
+        } finally {
+          spinner.style.display = 'none';
+        }
+      }
+
+      async function onConfigSelected() {
+        var configSel = document.getElementById('schema-config-select');
+        var tableName = schemaState.tableName;
+        var schemaEl = document.getElementById('mapping-schema');
+
+        if (!configSel.value || !tableName) {
+          schemaEl.style.display = 'none';
+          document.getElementById('btn-delete-mapping').style.display = 'none';
+          document.getElementById('btn-rename-config').style.display = 'none';
+          document.getElementById('chunk-size-row').style.display = 'none';
+          schemaState.configId = null;
+          return;
+        }
+
+        schemaState.configId = parseInt(configSel.value, 10);
+        document.getElementById('btn-delete-mapping').style.display = '';
+        document.getElementById('btn-rename-config').style.display = '';
+        document.getElementById('chunk-size-row').style.display = '';
+
+        var spinner = document.getElementById('mapping-spinner');
+        spinner.style.display = 'flex';
+        try {
+          var response = await fetch(
+            '{{ url_for("get_source_to_table_schema_mapping") }}?table_name=' + encodeURIComponent(tableName)
+            + '&config_id=' + encodeURIComponent(configSel.value),
+            { headers: { 'Accept': 'application/json' } }
+          );
+          var data = await response.json();
+          if (!response.ok || data.error) {
+            showErrors([data.error || 'Не удалось загрузить маппинг']);
+            return;
+          }
+
+          document.getElementById('chunk-size-input').value = data.chunk_size || 1000;
+
+          schemaState.tableRows = (data.table_columns || []).map(function (c) {
+            return { id: _newRowId(), name: c.name, function: c.function, functionLocked: !!c.function_locked, description: c.description };
+          });
+
+          if (data.has_mapping && data.mapping_type) {
+            schemaState.mappingType = data.mapping_type;
+            _populateFromMapping(data.mapping || []);
+            renderSchema();
+            _markClean();
+          } else {
+            schemaState.mappingType = null;
+            schemaState.sourceRows = [];
+            schemaState.arrows = [];
+            document.getElementById('mapping-type-overlay').style.display = 'flex';
+          }
+        } catch (e) {
+          showErrors(['Ошибка соединения: ' + e.message]);
+        } finally {
+          spinner.style.display = 'none';
+        }
+      }
+
+      // ── Переименование маппинга ──────────────────────────────────────────
+
+      function openRenameConfigModal() {
+        var sel = document.getElementById('schema-config-select');
+        var opt = sel.options[sel.selectedIndex];
+        if (!opt || !opt.value) return;
+        var parts = opt.textContent.split(' — ');
+        document.getElementById('rename-config-code').value = parts[0] || '';
+        document.getElementById('rename-config-desc').value = parts.slice(1).join(' — ') || '';
+        document.getElementById('rename-config-overlay').style.display = 'flex';
+      }
+
+      function closeRenameConfigModal() {
+        document.getElementById('rename-config-overlay').style.display = 'none';
+      }
+
+      async function confirmRenameConfig() {
+        var sel = document.getElementById('schema-config-select');
+        var configId = sel.value;
+        var code = document.getElementById('rename-config-code').value.trim();
+        var desc = document.getElementById('rename-config-desc').value.trim();
+        if (!code) { showErrors(['Код не может быть пустым']); return; }
+        var btn = document.getElementById('rename-config-confirm');
+        btn.disabled = true;
+        try {
+          var resp = await fetch('/source_to_table/schema/table-configs/' + configId, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ code: code, description: desc }),
+          });
+          var data = await resp.json();
+          if (!resp.ok || data.errors) { showErrors(data.errors || ['Ошибка переименования']); return; }
+          var opt = sel.options[sel.selectedIndex];
+          opt.textContent = data.code + (data.description ? ' — ' + data.description : '');
+          closeRenameConfigModal();
+        } catch (e) {
+          showErrors(['Ошибка соединения: ' + e.message]);
+        } finally {
+          btn.disabled = false;
+        }
+      }
+
+      // ── Создание нового маппинга ─────────────────────────────────────────
+
+      async function openNewMappingModal() {
+        if (!(await _guardUnsaved())) return;
+        document.getElementById('new-mapping-code').value = '';
+        document.getElementById('new-mapping-desc').value = '';
+        document.getElementById('new-mapping-overlay').style.display = 'flex';
+      }
+
+      function closeNewMappingModal() {
+        document.getElementById('new-mapping-overlay').style.display = 'none';
+      }
+
+      async function confirmNewMapping() {
+        var code = document.getElementById('new-mapping-code').value.trim();
+        var desc = document.getElementById('new-mapping-desc').value.trim();
+        if (!code) { showErrors(['Код не может быть пустым']); return; }
+        var btn = document.getElementById('new-mapping-confirm');
+        btn.disabled = true;
+        try {
+          var resp = await fetch(
+            '/source_to_table/schema/table-configs?table_name=' + encodeURIComponent(schemaState.tableName),
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+              body: JSON.stringify({ code: code, description: desc }),
+            }
+          );
+          var data = await resp.json();
+          if (!resp.ok || data.errors) { showErrors(data.errors || ['Ошибка создания']); return; }
+          var sel = document.getElementById('schema-config-select');
+          var opt = document.createElement('option');
+          opt.value = data.id;
+          opt.textContent = data.code + (data.description ? ' — ' + data.description : '');
+          sel.appendChild(opt);
+          sel.value = data.id;
+          closeNewMappingModal();
+          onConfigSelected();
+        } catch (e) {
+          showErrors(['Ошибка соединения: ' + e.message]);
+        } finally {
+          btn.disabled = false;
+        }
+      }
+
+      function _populateFromMapping(mapping) {
+        // Отфильтровываем незамапленные строки-источники в зависимости от типа схемы
+        if (schemaState.mappingType === 'name') {
+          mapping = mapping.filter(function (m) { return m.source_column != null && m.source_column !== ''; });
+        } else {
+          mapping = mapping.filter(function (m) { return m.source_column_number != null; });
+        }
+
+        var srcRows = [];
+        var arrows = [];
+        var tableByName = {};
+        schemaState.tableRows.forEach(function (r) { tableByName[r.name] = r; });
+
+        // group by source key to allow shared source rows
+        var sourceKeyMap = {};
+        mapping.forEach(function (m) {
+          var srcKey;
+          if (schemaState.mappingType === 'name') {
+            srcKey = m.source_column;
+          } else {
+            srcKey = (m.source_column_number == null) ? null : String(m.source_column_number);
+          }
+          var sr;
+          if (srcKey && sourceKeyMap[srcKey]) {
+            sr = sourceKeyMap[srcKey];
+          } else {
+            sr = {
+              id: _newRowId(),
+              value: schemaState.mappingType === 'name'
+                ? (m.source_column || '')
+                : (m.source_column_number == null ? '' : String(m.source_column_number)),
+              description: m.source_column_description || '',
+            };
+            srcRows.push(sr);
+            if (srcKey) sourceKeyMap[srcKey] = sr;
+          }
+          var tr = tableByName[m.table_column];
+          if (tr && (m.source_column || m.source_column_number != null)) {
+            arrows.push({ sourceId: sr.id, tableId: tr.id });
+          }
+        });
+
+        schemaState.sourceRows = srcRows;
+        schemaState.arrows = arrows;
+      }
+
+      function chooseMappingType(type) {
+        schemaState.mappingType = type;
+        document.getElementById('mapping-type-overlay').style.display = 'none';
+        // источник — столько же пустых строк, сколько колонок в таблице
+        schemaState.sourceRows = schemaState.tableRows.map(function () {
+          return { id: _newRowId(), value: '', description: '' };
+        });
+        schemaState.arrows = [];
+        renderSchema();
+        _markClean();
+      }
+
+      function closeMappingTypeModal() {
+        document.getElementById('mapping-type-overlay').style.display = 'none';
+        document.getElementById('schema-table-select').value = '';
+        document.getElementById('mapping-schema').style.display = 'none';
+        schemaState.tableName = null;
+      }
+
+      var jsPlumbInstance = null;
+      var _jsplumbRendering = false;
+      var _unsavedResolve = null;
+
+      function _markDirty() { schemaState.isDirty = true; }
+      function _markClean() { schemaState.isDirty = false; }
+
+      function _guardUnsaved() {
+        if (!schemaState.isDirty) return Promise.resolve(true);
+        return new Promise(function (resolve) {
+          _unsavedResolve = resolve;
+          document.getElementById('unsaved-overlay').style.display = 'flex';
+        });
+      }
+      function _confirmUnsaved() {
+        document.getElementById('unsaved-overlay').style.display = 'none';
+        _markClean();
+        if (_unsavedResolve) { _unsavedResolve(true); _unsavedResolve = null; }
+      }
+      function _cancelUnsaved() {
+        document.getElementById('unsaved-overlay').style.display = 'none';
+        if (_unsavedResolve) { _unsavedResolve(false); _unsavedResolve = null; }
+      }
+
+      var SOURCE_ENDPOINT_OPTS = {
+        anchor: 'Right',
+        isSource: true,
+        maxConnections: -1,
+        endpoint: ['Dot', { radius: 5 }],
+        paintStyle: { fill: '#1976d2' },
+        hoverPaintStyle: { fill: '#0d47a1' },
+        connectionsDetachable: true,
+      };
+
+      var TARGET_ENDPOINT_OPTS = {
+        anchor: 'Left',
+        isTarget: true,
+        maxConnections: 1,
+        endpoint: ['Dot', { radius: 5 }],
+        paintStyle: { fill: '#1976d2' },
+        hoverPaintStyle: { fill: '#0d47a1' },
+      };
+
+      function renderSchema() {
+        document.getElementById('mapping-schema').style.display = 'block';
+        var srcHeader1 = document.getElementById('schema-source-col1-header');
+        srcHeader1.textContent = schemaState.mappingType === 'number' ? 'Номер колонки' : 'Код колонки';
+
+        // source rows
+        var srcContainer = document.getElementById('schema-source-rows');
+        srcContainer.innerHTML = '';
+        schemaState.sourceRows.forEach(function (row) {
+          var tr = document.createElement('tr');
+          tr.id = 'src-' + row.id;
+          tr.dataset.rowId = row.id;
+
+          var td1 = document.createElement('td');
+          var wrap1 = document.createElement('div');
+          wrap1.className = 'schema-cell-wrap';
+          var inp1 = document.createElement('input');
+          inp1.type = schemaState.mappingType === 'number' ? 'number' : 'text';
+          if (schemaState.mappingType === 'number') { inp1.min = '1'; inp1.step = '1'; }
+          inp1.className = 'schema-cell-input';
+          inp1.value = row.value || '';
+          inp1.addEventListener('input', (function (r) { return function () {
+            _markDirty();
+            if (schemaState.mappingType === 'number' && inp1.value !== '') {
+              var n = Math.floor(Number(inp1.value));
+              if (!Number.isFinite(n) || n < 1) { inp1.value = ''; }
+              else if (String(n) !== inp1.value) { inp1.value = String(n); }
+            }
+            r.value = inp1.value;
+            if (!jsPlumbInstance) return;
+            var hasValue = !!String(inp1.value || '').trim();
+            var ep = jsPlumbInstance.getEndpoint('ep-src-' + r.id);
+            if (hasValue && !ep) {
+              var el = document.getElementById('src-' + r.id);
+              if (el) { var newEp = jsPlumbInstance.addEndpoint(el, SOURCE_ENDPOINT_OPTS, { uuid: 'ep-src-' + r.id }); _bindEndpointTooltip(newEp); }
+            } else if (!hasValue && ep) {
+              (ep.connections || []).slice().forEach(function (c) { jsPlumbInstance.deleteConnection(c); });
+              schemaState.arrows = schemaState.arrows.filter(function (a) { return a.sourceId !== r.id; });
+              jsPlumbInstance.deleteEndpoint(ep);
+            }
+          }; })(row));
+          wrap1.appendChild(inp1);
+          td1.appendChild(wrap1);
+
+          var td2 = document.createElement('td');
+          var wrap2 = document.createElement('div');
+          wrap2.className = 'schema-cell-wrap';
+          var inp2 = document.createElement('input');
+          inp2.type = 'text';
+          inp2.className = 'schema-cell-input';
+          inp2.value = row.description || '';
+          inp2.addEventListener('input', function () { _markDirty(); row.description = inp2.value; });
+          wrap2.appendChild(inp2);
+          td2.appendChild(wrap2);
+
+          var tdMove = document.createElement('td');
+          tdMove.className = 'schema-td-move';
+          var moveWrap = document.createElement('div');
+          moveWrap.className = 'schema-cell-move-wrap';
+          var btnUp = document.createElement('button');
+          btnUp.type = 'button';
+          btnUp.className = 'schema-row-move';
+          btnUp.textContent = '▲';
+          btnUp.title = 'Переместить вверх';
+          (function (id) { btnUp.addEventListener('click', function () { moveSourceRow(id, -1); }); })(row.id);
+          var btnDown = document.createElement('button');
+          btnDown.type = 'button';
+          btnDown.className = 'schema-row-move';
+          btnDown.textContent = '▼';
+          btnDown.title = 'Переместить вниз';
+          (function (id) { btnDown.addEventListener('click', function () { moveSourceRow(id, 1); }); })(row.id);
+          moveWrap.appendChild(btnUp);
+          moveWrap.appendChild(btnDown);
+          tdMove.appendChild(moveWrap);
+
+          var tdDel = document.createElement('td');
+          tdDel.className = 'schema-td-del';
+          var delWrap = document.createElement('div');
+          delWrap.className = 'schema-cell-wrap';
+          delWrap.style.justifyContent = 'center';
+          var del = document.createElement('button');
+          del.type = 'button';
+          del.className = 'schema-row-del';
+          del.textContent = '✕';
+          del.title = 'Удалить строку';
+          (function (id) { del.addEventListener('click', function () { removeSourceRow(id); }); })(row.id);
+          delWrap.appendChild(del);
+          tdDel.appendChild(delWrap);
+
+          tr.appendChild(tdMove);
+          tr.appendChild(td1);
+          tr.appendChild(td2);
+          tr.appendChild(tdDel);
+          srcContainer.appendChild(tr);
+        });
+
+        // table rows
+        var tblContainer = document.getElementById('schema-table-rows');
+        tblContainer.innerHTML = '';
+        schemaState.tableRows.forEach(function (row) {
+          var tr = document.createElement('tr');
+          tr.id = 'tbl-' + row.id;
+          tr.dataset.rowId = row.id;
+
+          var td1 = document.createElement('td');
+          td1.textContent = row.name || '';
+
+          var td2 = document.createElement('td');
+          td2.style.padding = '0';
+          var fnSel = document.createElement('select');
+          fnSel.className = 'schema-fn-select';
+          if (row.functionLocked) {
+            var oLocked = document.createElement('option');
+            oLocked.value = row.function || '';
+            oLocked.textContent = row.function || '—';
+            fnSel.appendChild(oLocked);
+            fnSel.disabled = true;
+            fnSel.style.color = '#888';
+            fnSel.style.cursor = 'default';
+          } else {
+            [['', '—'], ['PACKAGE_TIMESTAMP', 'PACKAGE_TIMESTAMP'], ['PACKAGE_ID', 'PACKAGE_ID'], ['SOURCE', 'SOURCE']].forEach(function (opt) {
+              var o = document.createElement('option');
+              o.value = opt[0]; o.textContent = opt[1];
+              fnSel.appendChild(o);
+            });
+            fnSel.value = row.function || '';
+            (function (r) {
+              fnSel.addEventListener('change', function () {
+                _markDirty();
+                _syncArrowsFromJsPlumb();
+                r.function = fnSel.value || null;
+                if (r.function) {
+                  schemaState.arrows = schemaState.arrows.filter(function (a) { return a.tableId !== r.id; });
+                }
+                _initJsPlumbConnections();
+              });
+            })(row);
+          }
+          td2.appendChild(fnSel);
+
+          var td3 = document.createElement('td');
+          td3.textContent = row.description || '';
+
+          tr.appendChild(td1);
+          tr.appendChild(td2);
+          tr.appendChild(td3);
+          tblContainer.appendChild(tr);
+        });
+
+        window.requestAnimationFrame(_initJsPlumbConnections);
+      }
+
+      function _connTooltipText(conn) {
+        var eps = conn.endpoints || [];
+        var ep0 = eps[0]; var ep1 = eps[1];
+        var srcId = ep0 && ep0.getUuid ? ep0.getUuid().replace('ep-src-', '') : '';
+        var tblId = ep1 && ep1.getUuid ? ep1.getUuid().replace('ep-tbl-', '') : '';
+        var srcRow = schemaState.sourceRows.find(function (r) { return r.id === srcId; });
+        var tblRow = schemaState.tableRows.find(function (r) { return r.id === tblId; });
+        return (srcRow ? (srcRow.value || '?') : '?') + ' → ' + (tblRow ? (tblRow.name || '?') : '?');
+      }
+
+      function _showTooltip(text, e) {
+        var tooltip = document.getElementById('conn-tooltip');
+        tooltip.textContent = text;
+        tooltip.style.display = 'block';
+        var ev = (e && e.clientX !== undefined) ? e : null;
+        if (ev) { tooltip.style.left = (ev.clientX + 14) + 'px'; tooltip.style.top = (ev.clientY - 30) + 'px'; }
+      }
+
+      function _hideTooltip() {
+        document.getElementById('conn-tooltip').style.display = 'none';
+      }
+
+      function _bindEndpointTooltip(ep) {
+        ep.bind('mouseover', function (endpoint, e) {
+          var ev = (e && e.clientX !== undefined) ? e : (endpoint && endpoint.clientX !== undefined ? endpoint : null);
+          var conns = ep.connections || [];
+          if (conns.length === 0) return;
+          var text = conns.map(_connTooltipText).join('\n');
+          _showTooltip(text, ev);
+        });
+        ep.bind('mouseout', _hideTooltip);
+      }
+
+      function _bindConnectionTooltip(conn) {
+        conn.bind('mouseover', function (c, e) {
+          var ev = (e && e.clientX !== undefined) ? e : (c && c.clientX !== undefined ? c : null);
+          _showTooltip(_connTooltipText(conn), ev);
+        });
+        conn.bind('mouseout', _hideTooltip);
+      }
+
+      function _initJsPlumbConnections() {
+        if (typeof jsPlumb === 'undefined') return;
+
+        if (jsPlumbInstance) {
+          jsPlumbInstance.reset();
+        } else {
+          jsPlumbInstance = jsPlumb.getInstance({
+            Connector: 'Straight',
+            PaintStyle: { stroke: '#1976d2', strokeWidth: 2 },
+            HoverPaintStyle: { stroke: '#d32f2f', strokeWidth: 3 },
+            Endpoint: ['Dot', { radius: 5 }],
+            EndpointStyle: { fill: '#1976d2' },
+            EndpointHoverStyle: { fill: '#0d47a1' },
+            ConnectionOverlays: [
+              ['Arrow', { location: 1, width: 10, length: 10, foldback: 0.8 }],
+            ],
+            ConnectionsDetachable: true,
+          });
+        }
+        jsPlumbInstance.setContainer(document.getElementById('schema-body'));
+
+        schemaState.sourceRows.forEach(function (row) {
+          if (!String(row.value || '').trim()) return;
+          var el = document.getElementById('src-' + row.id);
+          if (el) { var ep = jsPlumbInstance.addEndpoint(el, SOURCE_ENDPOINT_OPTS, { uuid: 'ep-src-' + row.id }); _bindEndpointTooltip(ep); }
+        });
+        schemaState.tableRows.forEach(function (row) {
+          if (row.function) return;
+          var el = document.getElementById('tbl-' + row.id);
+          if (el) { var ep = jsPlumbInstance.addEndpoint(el, TARGET_ENDPOINT_OPTS, { uuid: 'ep-tbl-' + row.id }); _bindEndpointTooltip(ep); }
+        });
+
+        _jsplumbRendering = true;
+        schemaState.arrows.forEach(function (a) {
+          var conn = jsPlumbInstance.connect({ uuids: ['ep-src-' + a.sourceId, 'ep-tbl-' + a.tableId] });
+          if (conn) _bindConnectionTooltip(conn);
+        });
+        _jsplumbRendering = false;
+
+        jsPlumbInstance.bind('connection', function (info) {
+          var conn = info.connection;
+          var eps = (conn && conn.endpoints) || [];
+          var ep0 = eps[0] || info.sourceEndpoint;
+          var ep1 = eps[1] || info.targetEndpoint;
+          if (!ep0 || !ep1) return;
+          var srcId = ep0.getUuid ? (ep0.getUuid() || '').replace(/^ep-src-/, '') : '';
+          var tblId = ep1.getUuid ? (ep1.getUuid() || '').replace(/^ep-tbl-/, '') : '';
+          if (!srcId || !tblId) return;
+          var exists = schemaState.arrows.some(function (a) { return a.sourceId === srcId && a.tableId === tblId; });
+          if (!exists) schemaState.arrows.push({ sourceId: srcId, tableId: tblId });
+          if (!_jsplumbRendering) _markDirty();
+          _bindConnectionTooltip(conn);
+        });
+        jsPlumbInstance.bind('connectionDetached', function (info) {
+          var conn = info.connection;
+          var eps = (conn && conn.endpoints) || [];
+          var ep0 = eps[0] || info.sourceEndpoint;
+          var ep1 = eps[1] || info.targetEndpoint;
+          if (!ep0 || !ep1) return;
+          var srcId = ep0.getUuid ? (ep0.getUuid() || '').replace(/^ep-src-/, '') : '';
+          var tblId = ep1.getUuid ? (ep1.getUuid() || '').replace(/^ep-tbl-/, '') : '';
+          schemaState.arrows = schemaState.arrows.filter(function (a) {
+            return !(a.sourceId === srcId && a.tableId === tblId);
+          });
+          if (!_jsplumbRendering) _markDirty();
+        });
+        jsPlumbInstance.bind('click', function (conn) {
+          jsPlumbInstance.deleteConnection(conn);
+        });
+
+      }
+
+      function _syncArrowsFromJsPlumb() {
+        if (!jsPlumbInstance) return;
+        try {
+          var connections = jsPlumbInstance.getConnections() || [];
+          schemaState.arrows = connections.map(function (c) {
+            var eps = c.endpoints || [];
+            var ep0 = eps[0];
+            var ep1 = eps[1];
+            var srcId = ep0 && ep0.getUuid ? (ep0.getUuid() || '').replace(/^ep-src-/, '') : '';
+            var tblId = ep1 && ep1.getUuid ? (ep1.getUuid() || '').replace(/^ep-tbl-/, '') : '';
+            return { sourceId: srcId, tableId: tblId };
+          }).filter(function (a) { return a.sourceId && a.tableId; });
+        } catch (e) {
+          console.warn('_syncArrowsFromJsPlumb error:', e);
+        }
+      }
+
+      function addSourceRow() {
+        _syncArrowsFromJsPlumb();
+        schemaState.sourceRows.push({ id: _newRowId(), value: '', description: '' });
+        _markDirty();
+        renderSchema();
+      }
+
+      function removeSourceRow(rowId) {
+        _syncArrowsFromJsPlumb();
+        schemaState.sourceRows = schemaState.sourceRows.filter(function (r) { return r.id !== rowId; });
+        schemaState.arrows = schemaState.arrows.filter(function (a) { return a.sourceId !== rowId; });
+        _markDirty();
+        renderSchema();
+      }
+
+      function moveSourceRow(rowId, dir) {
+        _syncArrowsFromJsPlumb();
+        var idx = schemaState.sourceRows.findIndex(function (r) { return r.id === rowId; });
+        if (idx < 0) return;
+        var newIdx = idx + dir;
+        if (newIdx < 0 || newIdx >= schemaState.sourceRows.length) return;
+        var tmp = schemaState.sourceRows[idx];
+        schemaState.sourceRows[idx] = schemaState.sourceRows[newIdx];
+        schemaState.sourceRows[newIdx] = tmp;
+        _markDirty();
+        renderSchema();
+      }
+
+      window.addEventListener('resize', function () {
+        if (jsPlumbInstance) jsPlumbInstance.repaintEverything();
+      });
+
+      async function saveSchema() {
+        if (!schemaState.tableName || !schemaState.mappingType) return;
+        _syncArrowsFromJsPlumb();
+        var rows = [];
+        var srcById = {};
+        var srcOrderById = {};
+        schemaState.sourceRows.forEach(function (r, i) {
+          srcById[r.id] = r;
+          srcOrderById[r.id] = i + 1;
+        });
+
+        // Каждая стрелка — запись по table_column
+        var arrowsByTable = {};
+        var connectedSourceIds = new Set();
+        schemaState.arrows.forEach(function (a) {
+          if (!arrowsByTable[a.tableId]) arrowsByTable[a.tableId] = [];
+          arrowsByTable[a.tableId].push(a);
+          connectedSourceIds.add(a.sourceId);
+        });
+
+        schemaState.tableRows.forEach(function (tr) {
+          var arrs = arrowsByTable[tr.id] || [];
+          if (arrs.length === 0) {
+            // незамапленная колонка таблицы — запись без source
+            rows.push({
+              table_column: tr.name,
+              function: tr.function,
+              source_column: null,
+              source_column_number: null,
+              source_column_description: null,
+              source_column_order: 0,
+            });
+          } else {
+            arrs.forEach(function (a) {
+              var src = srcById[a.sourceId] || { value: '', description: '' };
+              rows.push({
+                table_column: tr.name,
+                function: tr.function,
+                source_column: schemaState.mappingType === 'name' ? src.value : null,
+                source_column_number: schemaState.mappingType === 'number'
+                  ? (src.value === '' ? null : Number(src.value)) : null,
+                source_column_description: src.description || null,
+                source_column_order: srcOrderById[a.sourceId] || 0,
+              });
+            });
+          }
+        });
+
+        // Строки источника с заполненным кодом/номером, не соединённые с таблицей
+        schemaState.sourceRows.forEach(function (r, i) {
+          if (connectedSourceIds.has(r.id)) return;
+          var val = String(r.value || '').trim();
+          if (!val) return;
+          rows.push({
+            table_column: null,
+            function: null,
+            source_column: schemaState.mappingType === 'name' ? val : null,
+            source_column_number: schemaState.mappingType === 'number' ? Number(val) : null,
+            source_column_description: r.description || null,
+            source_column_order: i + 1,
+          });
+        });
+
+        var spinner = document.getElementById('mapping-spinner');
+        spinner.style.display = 'flex';
+        try {
+          var response = await fetch('{{ url_for("post_source_to_table_schema_mapping") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({
+              table_name: schemaState.tableName,
+              config_id: schemaState.configId,
+              mapping_type: schemaState.mappingType,
+              chunk_size: parseInt(document.getElementById('chunk-size-input').value, 10) || 1000,
+              rows: rows,
+            }),
+          });
+          var data = await response.json();
+          if (data.success) {
+            _markClean();
+            document.getElementById('mapping-success-desc').textContent =
+              'Маппинг сохранён. Записей: ' + data.count + '.';
+            document.getElementById('mapping-success-overlay').style.display = 'flex';
+          } else {
+            var messages = Array.isArray(data.errors) ? data.errors : [data.error || 'Неизвестная ошибка'];
+            showErrors(messages);
+          }
+        } catch (e) {
+          showErrors(['Ошибка соединения: ' + e.message]);
+        } finally {
+          spinner.style.display = 'none';
+        }
+      }
+
+      // ── Поиск ────────────────────────────────────────────────────────────
+
+      var _searchState = {
+        source: { query: '', idx: -1 },
+        table:  { query: '', idx: -1 },
+      };
+
+      function _findAllInRows(side, query) {
+        var rows = side === 'source' ? schemaState.sourceRows : schemaState.tableRows;
+        var q = (query || '').trim().toLowerCase();
+        if (!q) return [];
+        var starts = [], contains = [], seen = {};
+        for (var i = 0; i < rows.length; i++) {
+          var v = String(side === 'source' ? (rows[i].value || '') : (rows[i].name || '')).toLowerCase();
+          if (v.indexOf(q) === 0) { starts.push(rows[i].id); seen[rows[i].id] = true; }
+        }
+        for (var j = 0; j < rows.length; j++) {
+          var vv = String(side === 'source' ? (rows[j].value || '') : (rows[j].name || '')).toLowerCase();
+          if (vv.indexOf(q) >= 0 && !seen[rows[j].id]) contains.push(rows[j].id);
+        }
+        return starts.concat(contains);
+      }
+
+      function _searchNext(side, query) {
+        var q = (query || '').trim().toLowerCase();
+        var st = _searchState[side];
+        if (q !== st.query) { st.query = q; st.idx = -1; }
+        var ids = _findAllInRows(side, q);
+        if (!ids.length) return;
+        st.idx = (st.idx + 1) % ids.length;
+        _scrollToRow(side, ids[st.idx]);
+      }
+
+      var _highlightState = { source: null, table: null };
+
+      function _scrollToRow(side, rowId) {
+        if (_highlightState[side]) { _highlightState[side].classList.remove('schema-row-highlight'); }
+        var prefix = side === 'source' ? 'src-' : 'tbl-';
+        var el = document.getElementById(prefix + rowId);
+        if (!el) return;
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('schema-row-highlight');
+        _highlightState[side] = el;
+      }
+
+      // ── Init ─────────────────────────────────────────────────────────────
+
+      document.addEventListener('DOMContentLoaded', function () {
+        loadSchemaTables();
+        document.getElementById('schema-search-source').addEventListener('keydown', function (e) {
+          if (e.key !== 'Enter') return;
+          _searchNext('source', e.target.value);
+        });
+        document.getElementById('schema-search-source').addEventListener('input', function () {
+          _searchState.source.query = ''; _searchState.source.idx = -1;
+        });
+        document.getElementById('schema-search-table').addEventListener('keydown', function (e) {
+          if (e.key !== 'Enter') return;
+          _searchNext('table', e.target.value);
+        });
+        document.getElementById('schema-search-table').addEventListener('input', function () {
+          _searchState.table.query = ''; _searchState.table.idx = -1;
+        });
+      });
+
       document.addEventListener('keydown', function (e) {
         if (e.key !== 'Escape') return;
+        var typeEl = document.getElementById('mapping-type-overlay');
+        if (typeEl && typeEl.style.display !== 'none') { closeMappingTypeModal(); return; }
         var successEl = document.getElementById('mapping-success-overlay');
         if (successEl && successEl.style.display !== 'none') { closeMappingSuccess(); return; }
         var conflictEl = document.getElementById('mapping-conflict-overlay');
         if (conflictEl && conflictEl.style.display !== 'none') { closeMappingConflict(); return; }
+      });
+
+      window.addEventListener('beforeunload', function (e) {
+        if (!schemaState.isDirty) return;
+        e.preventDefault();
+        e.returnValue = '';
+      });
+
+      document.addEventListener('click', function (e) {
+        if (!schemaState.isDirty) return;
+        var link = e.target.closest('a[href]');
+        if (!link) return;
+        var href = link.getAttribute('href');
+        if (!href || href === '#') return;
+        e.preventDefault();
+        _guardUnsaved().then(function (ok) {
+          if (ok) { window.location.href = href; }
+        });
       });
     </script>
   </body>

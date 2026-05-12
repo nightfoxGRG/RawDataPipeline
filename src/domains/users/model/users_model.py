@@ -3,7 +3,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, Index, String, func, text
+from sqlalchemy import BigInteger, Boolean, Index, String, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from config.db_orm_sqlalchemy.db_base_config import Base
@@ -20,7 +20,7 @@ class UsersModel(Base):
         ),
     )
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     subject_id: Mapped[str] = mapped_column(String(50), nullable=False)
     first_name: Mapped[str | None] = mapped_column(String(50))
     last_name: Mapped[str | None] = mapped_column(String(50))

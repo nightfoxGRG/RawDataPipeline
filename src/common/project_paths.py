@@ -11,4 +11,5 @@ class ProjectPaths:
     CONFIG = ROOT / 'resources'
     MIGRATIONS = ROOT / 'resources' / 'migrations'
     TEMPLATES = ROOT / 'resources' / 'templates'
-    STATIC = ROOT /'resources' / 'static'
+    STATIC = ROOT / 'resources' / 'static'
+    TABLE_CONFIG_TEMPLATE = STATIC / 'TablesConfig.xlsm'
