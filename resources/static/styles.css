@@ -745,6 +745,12 @@ button:hover, .btn-save:hover, .btn-secondary:hover {
   vertical-align: middle;
 }
 
+/* Высота строк правой таблицы — такая же как у левой (27px через cell-wrap) */
+.schema-table .schema-tbl td {
+  padding: 0;
+  vertical-align: middle;
+}
+
 /* Выбор функции в правой таблице */
 .schema-fn-select {
   width: 100%;
@@ -797,6 +803,8 @@ button:hover, .btn-save:hover, .btn-secondary:hover {
 }
 
 .schema-tbl td .schema-cell-input:focus { background: #f5f8ff; }
+.schema-tbl td .schema-cell-input--error { border-color: #c62828 !important; background: #fff5f5 !important; }
+.schema-tbl td .schema-cell-input--error:focus { background: #fff0f0 !important; }
 
 /* jsPlumb — tr должен быть position:relative для корректного anchor */
 .schema-tbl tr { position: relative; }

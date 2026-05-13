@@ -41,6 +41,17 @@ class InformationSchemaRepository(metaclass=SingletonMeta):
             {'s': schema, 't': table},
         ).fetchall()
 
+    def get_columns_metadata(self, db_id: int, schema: str, table: str) -> list[tuple]:
+        return self._session.execute(
+            sa_text(
+                'SELECT column_name, data_type, is_nullable, column_default '
+                'FROM information_schema.columns '
+                'WHERE table_schema = :s AND table_name = :t '
+                'ORDER BY ordinal_position'
+            ),
+            {'s': schema, 't': table},
+        ).fetchall()
+
     def get_column_names_with_defaults(self, db_id: int, schema: str, table: str) -> list[tuple]:
         return self._session.execute(
             sa_text(

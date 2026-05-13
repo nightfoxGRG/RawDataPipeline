@@ -19,3 +19,4 @@ class ColumnConfig:
 class TableConfig:
     name: str
     columns: list[ColumnConfig]
+    original_name: str | None = None

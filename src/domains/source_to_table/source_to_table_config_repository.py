@@ -10,6 +10,9 @@ from domains.source_to_table.source_to_table_config_model import SourceToTableCo
 @repository
 class SourceToTableConfigRepository(metaclass=SingletonMeta):
 
+    def find_by_id(self, config_id: int) -> SourceToTableConfigModel | None:
+        return self._session.get(SourceToTableConfigModel, config_id)
+
     def find_by_id_and_project(self, config_id: int, project_id: int) -> SourceToTableConfigModel | None:
         record = self._session.get(SourceToTableConfigModel, config_id)
         if record and record.project_id == project_id:
@@ -45,6 +48,14 @@ class SourceToTableConfigRepository(metaclass=SingletonMeta):
         record.description = description
         self._session.flush()
         return True
+
+    def find_by_project(self, project_id: int) -> list[SourceToTableConfigModel]:
+        return (
+            self._session.query(SourceToTableConfigModel)
+            .filter(SourceToTableConfigModel.project_id == project_id)
+            .order_by(SourceToTableConfigModel.table_name, SourceToTableConfigModel.code)
+            .all()
+        )
 
     def find_by_project_and_table(self, project_id: int, table_name: str) -> list[SourceToTableConfigModel]:
         return (

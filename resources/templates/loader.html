@@ -14,6 +14,343 @@
 
     <div class="content">
       <h1>Загружатор</h1>
+      <hr class="section-divider">
+
+      <p class="hint">Загрузить локальные данные по конфигурационному файлу проекта. Имена файлов сопоставляются с таблицами по полю «Имя файла» в конфиге.</p>
+      <input id="load-by-config-files" type="file" multiple webkitdirectory directory style="display:none">
+      <div class="upload-buttons">
+        <button type="button" onclick="document.getElementById('load-by-config-files').click()">
+          Загрузить по конфигурационному файлу
+        </button>
+      </div>
+
+      <hr class="section-divider" style="margin-top:20px">
+
+      <p class="hint">Загрузить локальные данные с выбором конфигурации маппинга.</p>
+      <input id="load-by-dir-files" type="file" multiple webkitdirectory directory style="display:none">
+      <input id="load-by-file-files" type="file" multiple accept=".xlsx,.xlsm,.csv" style="display:none">
+      <div class="upload-buttons">
+        <button type="button" onclick="startLoadByDirectory()">
+          Загрузить из локальной директории
+        </button>
+        <button type="button" onclick="startLoadByFile()">
+          Загрузить локальный файл
+        </button>
+      </div>
+
+      <div id="load-spinner" class="spinner" style="display:none;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:1100">
+        <span class="spinner-icon"></span> Загрузка…
+      </div>
     </div>
+
+    <!-- Результаты загрузки -->
+    <div id="load-results-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeLoadResults()">
+      <div class="modal" style="max-width:780px;width:90%">
+        <div class="modal-header">
+          <h2 class="modal-title">Результаты загрузки</h2>
+          <button type="button" class="modal-close" onclick="closeLoadResults()">&#x2715;</button>
+        </div>
+        <div class="modal-divider"></div>
+        <div class="modal-body" style="padding:12px 16px">
+          <div style="height:280px;overflow-y:auto">
+            <table id="load-results-table" style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed">
+              <tbody id="load-results-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-modal-primary" style="flex:none;width:auto;padding:0 32px" onclick="closeLoadResults()">Закрыть</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Детали ошибок загрузки -->
+    <div id="load-error-detail-overlay" class="modal-overlay" style="display:none;z-index:1100" onclick="if(event.target===this)closeErrorDetail()">
+      <div class="modal" style="max-width:680px;width:90%">
+        <div class="modal-header">
+          <h2 class="modal-title" id="load-error-detail-title">Ошибки загрузки</h2>
+          <button type="button" class="modal-close" onclick="closeErrorDetail()">&#x2715;</button>
+        </div>
+        <div class="modal-divider"></div>
+        <div class="modal-body">
+          <ul id="load-error-detail-list" style="margin:0;padding-left:18px;font-size:13px;line-height:1.8;color:#c62828;max-height:60vh;overflow:auto"></ul>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-modal-primary" onclick="closeErrorDetail()">Закрыть</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Выбор конфигурации маппинга -->
+    <div id="dir-config-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeDirConfigModal()">
+      <div class="modal" style="max-width:680px;width:90%">
+        <div class="modal-header">
+          <h2 class="modal-title">Выбор маппинга</h2>
+          <button type="button" class="modal-close" onclick="closeDirConfigModal()">&#x2715;</button>
+        </div>
+        <div class="modal-divider"></div>
+        <div class="modal-body" style="padding:0">
+          <div style="max-height:50vh;overflow:auto">
+            <table id="dir-config-table" style="width:100%;border-collapse:collapse;font-size:13px">
+              <tbody id="dir-config-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-modal-cancel" onclick="closeDirConfigModal()">Отмена</button>
+          <button type="button" class="btn-modal-primary" id="dir-config-confirm" onclick="confirmDirConfig()" disabled>Загрузить</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      var ALLOWED_LOAD_EXT_RE = /\.(xlsx|xlsm|csv)$/i;
+
+      // ── Загрузка по конфигурационному файлу ─────────────────────────────
+
+      var dirInput = document.getElementById('load-by-config-files');
+
+      function closeLoadResults() {
+        document.getElementById('load-results-overlay').style.display = 'none';
+      }
+
+      function openErrorDetail(filename, reason) {
+        document.getElementById('load-error-detail-title').textContent = filename;
+        var ul = document.getElementById('load-error-detail-list');
+        ul.innerHTML = '';
+        var lines = (reason || 'неизвестная причина').split('\n');
+        lines.forEach(function (line) {
+          if (!line.trim()) return;
+          var li = document.createElement('li');
+          li.textContent = line;
+          ul.appendChild(li);
+        });
+        document.getElementById('load-error-detail-overlay').style.display = 'flex';
+      }
+
+      function closeErrorDetail() {
+        document.getElementById('load-error-detail-overlay').style.display = 'none';
+      }
+
+      function renderLoadResults(results, showTable) {
+        var tbody = document.getElementById('load-results-tbody');
+        tbody.innerHTML = '';
+        var TD_BASE = 'padding:0 10px;height:28px;vertical-align:middle;border:1px solid #e0e0e0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box';
+        (results || []).forEach(function (r) {
+          var tr = document.createElement('tr');
+
+          // колонка 1 — имя файла
+          var td1 = document.createElement('td');
+          td1.style.cssText = TD_BASE + ';width:220px;max-width:220px';
+          td1.title = r.file;
+          td1.textContent = r.file;
+
+          // колонка 2 — результат
+          var td2 = document.createElement('td');
+          td2.style.cssText = TD_BASE;
+          if (r.success) {
+            var msg = 'загружено';
+            if (showTable && r.table) msg += ' (' + r.table + ')';
+            msg += ', записей: ' + (r.count != null ? r.count : 0);
+            td2.textContent = msg;
+            td2.style.color = '#2e7d32';
+          } else {
+            td2.textContent = 'не загружено';
+            td2.style.color = '#c62828';
+          }
+
+          // колонка 3 — кнопка подробнее
+          var td3 = document.createElement('td');
+          td3.style.cssText = TD_BASE + ';width:110px;max-width:110px;position:relative';
+          if (!r.success) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.textContent = 'Подробнее';
+            btn.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:11px;padding:0 7px;height:18px;line-height:16px;cursor:pointer;border:1px solid #c62828;border-radius:3px;background:#fff;color:#c62828;white-space:nowrap;box-sizing:border-box;margin:0';
+            btn.addEventListener('click', (function (name, reason) {
+              return function () { openErrorDetail(name, reason); };
+            })(r.file, r.reason));
+            td3.appendChild(btn);
+          }
+
+          tr.appendChild(td1);
+          tr.appendChild(td2);
+          tr.appendChild(td3);
+          tbody.appendChild(tr);
+        });
+        document.getElementById('load-results-overlay').style.display = 'flex';
+      }
+
+      dirInput.addEventListener('change', async function () {
+        if (!dirInput.files.length) return;
+        var filtered = Array.from(dirInput.files).filter(function (f) { return ALLOWED_LOAD_EXT_RE.test(f.name); });
+        if (!filtered.length) {
+          showErrors(['В директории нет файлов с поддерживаемыми расширениями (.xlsx, .xlsm, .csv).']);
+          dirInput.value = '';
+          return;
+        }
+        var formData = new FormData();
+        filtered.forEach(function (f) { formData.append('data_files', f, f.name); });
+
+        var spinner = document.getElementById('load-spinner');
+        spinner.style.display = 'flex';
+        try {
+          var response = await fetch('{{ url_for("post_loader_load_by_table_config_from_directory") }}', {
+            method: 'POST',
+            body: formData,
+            headers: { 'Accept': 'application/json' },
+          });
+          var data = await response.json();
+          if (!response.ok || data.errors) {
+            showErrors(data.errors || ['Ошибка загрузки']);
+            return;
+          }
+          renderLoadResults(data.results || [], true);
+        } catch (e) {
+          showErrors(['Ошибка соединения: ' + e.message]);
+        } finally {
+          spinner.style.display = 'none';
+          dirInput.value = '';
+        }
+      });
+
+      // ── Загрузка из локальной директории ────────────────────────────────
+
+      var _dirFiles = [];
+      var _dirSelectedConfigId = null;
+
+      var dirFilesInput = document.getElementById('load-by-dir-files');
+      var fileFilesInput = document.getElementById('load-by-file-files');
+
+      function startLoadByDirectory() {
+        dirFilesInput.value = '';
+        dirFilesInput.click();
+      }
+
+      function startLoadByFile() {
+        fileFilesInput.value = '';
+        fileFilesInput.click();
+      }
+
+      dirFilesInput.addEventListener('change', async function () {
+        if (!dirFilesInput.files.length) return;
+        var filtered = Array.from(dirFilesInput.files).filter(function (f) { return ALLOWED_LOAD_EXT_RE.test(f.name); });
+        if (!filtered.length) {
+          showErrors(['В директории нет файлов с поддерживаемыми расширениями (.xlsx, .xlsm, .csv).']);
+          dirFilesInput.value = '';
+          return;
+        }
+        _dirFiles = filtered;
+        await openDirConfigModal();
+      });
+
+      fileFilesInput.addEventListener('change', async function () {
+        if (!fileFilesInput.files.length) return;
+        var filtered = Array.from(fileFilesInput.files).filter(function (f) { return ALLOWED_LOAD_EXT_RE.test(f.name); });
+        if (!filtered.length) {
+          showErrors(['Нет файлов с поддерживаемыми расширениями (.xlsx, .xlsm, .csv).']);
+          fileFilesInput.value = '';
+          return;
+        }
+        _dirFiles = filtered;
+        await openDirConfigModal();
+      });
+
+      async function openDirConfigModal() {
+        _dirSelectedConfigId = null;
+        document.getElementById('dir-config-confirm').disabled = true;
+        var tbody = document.getElementById('dir-config-tbody');
+        tbody.innerHTML = '<tr><td style="padding:12px;color:#888;font-size:13px">Загрузка…</td></tr>';
+        document.getElementById('dir-config-overlay').style.display = 'flex';
+
+        try {
+          var response = await fetch('{{ url_for("get_loader_directory_configs") }}', {
+            headers: { 'Accept': 'application/json' },
+          });
+          var data = await response.json();
+          if (!response.ok || data.errors) {
+            closeDirConfigModal();
+            showErrors(data.errors || ['Не удалось загрузить список маппингов']);
+            return;
+          }
+          var configs = data.configs || [];
+          tbody.innerHTML = '';
+          if (!configs.length) {
+            tbody.innerHTML = '<tr><td style="padding:12px;color:#888;font-size:13px">Нет доступных конфигураций маппинга</td></tr>';
+            return;
+          }
+          configs.forEach(function (cfg) {
+            var tr = document.createElement('tr');
+            tr.style.cursor = 'pointer';
+            tr.dataset.configId = cfg.id;
+
+            function setCells() {
+              tr.innerHTML = '';
+              [cfg.table_name, cfg.code, cfg.description].forEach(function (val) {
+                var td = document.createElement('td');
+                td.textContent = val || '';
+                td.style.cssText = 'padding:7px 14px;font-size:13px;border-bottom:1px solid #e8eaed;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px';
+                tr.appendChild(td);
+              });
+            }
+            setCells();
+
+            tr.addEventListener('click', function () {
+              document.querySelectorAll('#dir-config-tbody tr').forEach(function (r) {
+                r.style.background = '';
+                r.querySelectorAll('td').forEach(function (td) { td.style.color = ''; });
+              });
+              tr.style.background = '#e3f2fd';
+              tr.querySelectorAll('td').forEach(function (td) { td.style.color = '#1565c0'; });
+              _dirSelectedConfigId = cfg.id;
+              document.getElementById('dir-config-confirm').disabled = false;
+            });
+
+            tbody.appendChild(tr);
+          });
+        } catch (e) {
+          closeDirConfigModal();
+          showErrors(['Ошибка соединения: ' + e.message]);
+        }
+      }
+
+      function closeDirConfigModal() {
+        document.getElementById('dir-config-overlay').style.display = 'none';
+        _dirFiles = [];
+        _dirSelectedConfigId = null;
+        dirFilesInput.value = '';
+      }
+
+      async function confirmDirConfig() {
+        if (!_dirSelectedConfigId || !_dirFiles.length) return;
+        var configId = _dirSelectedConfigId;
+        var files = _dirFiles.slice();
+        closeDirConfigModal();
+
+        var formData = new FormData();
+        formData.append('config_id', String(configId));
+        files.forEach(function (f) { formData.append('data_files', f, f.name); });
+
+        var spinner = document.getElementById('load-spinner');
+        spinner.style.display = 'flex';
+        try {
+          var response = await fetch('{{ url_for("post_loader_directory_load") }}', {
+            method: 'POST',
+            body: formData,
+            headers: { 'Accept': 'application/json' },
+          });
+          var data = await response.json();
+          if (!response.ok || data.errors) {
+            showErrors(data.errors || ['Ошибка загрузки']);
+            return;
+          }
+          renderLoadResults(data.results || [], false);
+        } catch (e) {
+          showErrors(['Ошибка соединения: ' + e.message]);
+        } finally {
+          spinner.style.display = 'none';
+        }
+      }
+    </script>
   </body>
 </html>
