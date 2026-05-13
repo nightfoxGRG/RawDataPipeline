@@ -82,6 +82,7 @@ class SourceToTableService(metaclass=SingletonMeta):
                 description='маппинг из конфигурационного файла',
                 map_type='MAP_BY_COLUMN_NAME',
                 chunk_size=1000,
+                is_auto_generated=True,
                 created_by=user.user_id,
             )
             for table_name in table_names
@@ -126,9 +127,8 @@ class SourceToTableService(metaclass=SingletonMeta):
                     func_val = SOURCE.function
                 records.append(SourceToTableModel(
                     source_to_table_config_id=config_id,
-                    source_column=config_col.name if config_col else None,
+                    source_column=config_col.label if config_col else None,
                     source_column_order=config_order.get(db_col.lower(), 0),
-                    source_column_description=config_col.label if config_col else None,
                     table_column=db_col,
                     function=func_val,
                     created_by=user.user_id,

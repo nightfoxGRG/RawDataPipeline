@@ -10,9 +10,9 @@ from domains.configurator.table_config_model import TableConfig, ColumnConfig
 from common.error import AppError
 from domains.configurator.table_config_validator import TableConfigValidator
 
-TABLE_NAME_LABELS = {'наименование таблицы', 'table_name'}
+TABLE_NAME_LABELS = {'наименование таблицы (имя источника)', 'table_name'}
 COLUMN_CODE_LABELS = {'код колонки в бд', 'column_code'}
-COLUMN_NAME_LABELS = {'описание', 'column_name'}
+COLUMN_NAME_LABELS = {'код колонки в источнике', 'описание', 'column_name'}
 TYPE_LABELS = {'тип', 'type'}
 SIZE_LABELS = {'размерность', 'size'}
 REQUIRED_LABELS = {'обязательность', 'nullable'}
@@ -92,32 +92,34 @@ class TableConfigParserService(metaclass=SingletonMeta):
         return tables
 
     def _parse_excel(self, content: bytes) -> list[TableConfig]:
-        workbook = load_workbook(BytesIO(content), data_only=True)
-
-        v1_sheet = v2_sheet = None
-        for sheet in workbook.worksheets:
-            name = sheet.title.strip().lower()
-            if name == 'tables_config':
-                v1_sheet = sheet
-            elif name == 'tables_config_v2':
-                v2_sheet = sheet
-
-        if v1_sheet is None and v2_sheet is None:
-            if len(workbook.worksheets) == 1:
-                sheet = workbook.worksheets[0]
-                if self._is_v2_format(sheet):
-                    v2_sheet = sheet
-                else:
+        workbook = load_workbook(BytesIO(content), data_only=True, read_only=True)
+        try:
+            v1_sheet = v2_sheet = None
+            for sheet in workbook.worksheets:
+                name = sheet.title.strip().lower()
+                if name == 'tables_config':
                     v1_sheet = sheet
-            else:
-                raise AppError('Лист tables_config не найден.')
+                elif name == 'tables_config_v2':
+                    v2_sheet = sheet
 
-        tables: list[TableConfig] = []
-        if v1_sheet is not None:
-            tables.extend(self._parse_excel_v1_rows([list(r) for r in v1_sheet.iter_rows(values_only=True)]))
-        if v2_sheet is not None:
-            tables.extend(self._parse_excel_v2_sheet(v2_sheet))
-        return tables
+            if v1_sheet is None and v2_sheet is None:
+                if len(workbook.worksheets) == 1:
+                    sheet = workbook.worksheets[0]
+                    if self._is_v2_format(sheet):
+                        v2_sheet = sheet
+                    else:
+                        v1_sheet = sheet
+                else:
+                    raise AppError('Лист tables_config не найден.')
+
+            tables: list[TableConfig] = []
+            if v1_sheet is not None:
+                tables.extend(self._parse_excel_v1_rows([list(r) for r in v1_sheet.iter_rows(values_only=True)]))
+            if v2_sheet is not None:
+                tables.extend(self._parse_excel_v2_sheet(v2_sheet))
+            return tables
+        finally:
+            workbook.close()
 
     def _is_v2_format(self, sheet) -> bool:
         rows = list(sheet.iter_rows(min_row=2, max_row=2, values_only=True))
@@ -153,11 +155,16 @@ class TableConfigParserService(metaclass=SingletonMeta):
         tables: list[TableConfig] = []
         for i, start_col in enumerate(block_starts):
             raw_name_cell = table_row[start_col] if start_col < len(table_row) else None
+            original_offset = 1
             if self._label(raw_name_cell) in TABLE_NAME_LABELS:
                 raw_name_cell = table_row[start_col + 1] if start_col + 1 < len(table_row) else None
+                original_offset = 2
             table_name = self._normalize_text(raw_name_cell)
             if not table_name:
                 continue
+            original_name = self._normalize_text(
+                table_row[start_col + original_offset] if start_col + original_offset < len(table_row) else None
+            )
 
             end_col = block_starts[i + 1] if i + 1 < len(block_starts) else len(header_row)
             header_map: dict[str, int] = {}
@@ -208,13 +215,14 @@ class TableConfigParserService(metaclass=SingletonMeta):
                     default=self._cell(row, default_col) if default_col is not None else None,
                     label=self._cell(row, name_col) if name_col is not None else None,
                 ))
-            tables.append(TableConfig(name=table_name, columns=columns))
+            tables.append(TableConfig(name=table_name, columns=columns, original_name=original_name))
 
         return tables
 
     def _parse_excel_table_block(self, rows: list[list], start_index: int) -> tuple[TableConfig | None, int]:
         header_row = rows[start_index]
-        table_name = self._first_non_empty(header_row[1:])
+        table_name = self._cell(header_row, 1) or self._first_non_empty(header_row[1:])
+        original_name = self._cell(header_row, 2)
         if not table_name:
             return None, start_index + 1
 
@@ -272,7 +280,7 @@ class TableConfigParserService(metaclass=SingletonMeta):
                 label=self._cell(name_row, idx),
             ))
 
-        return TableConfig(name=table_name, columns=columns), end_index
+        return TableConfig(name=table_name, columns=columns, original_name=original_name), end_index
 
     @staticmethod
     def _find_row(row_map: dict[str, list], names: set[str]) -> list | None:

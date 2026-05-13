@@ -380,9 +380,9 @@ class TableConfigGeneratorService(metaclass=SingletonMeta):
         wb.save(output)
         return self._restore_x14_validations(template_bytes, output.getvalue())
 
-    @staticmethod
+
     def _fill_tc_block(
-        ws, start_row: int, table_name: str, columns: list[dict], original_name: str | None = None
+        self, ws, start_row: int, table_name: str, columns: list[dict], original_name: str | None = None
     ) -> None:
         # Row offsets within block: 0=table name, 1=label, 2=code, 3=type, 4=size,
         # 5=mandatory, 6=unique, 7=pk, 8=fk, 9=default

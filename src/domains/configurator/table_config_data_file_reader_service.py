@@ -44,7 +44,7 @@ class TableConfigDataFileReaderService(metaclass=SingletonMeta):
             )
 
         table_name = self._sanitize_table_name(original_stem)
-        return table_name, original_stem, headers, rows
+        return table_name, original_stem+extension, headers, rows
 
     def _sanitize_table_name(self, name: str) -> str:
         code = self._libretranslate.translate_to_english(name).strip()
@@ -70,9 +70,12 @@ class TableConfigDataFileReaderService(metaclass=SingletonMeta):
 
     @staticmethod
     def _read_excel(content: bytes) -> tuple[list[str], list[list]]:
-        wb = load_workbook(BytesIO(content), data_only=True)
-        ws = wb.active
-        all_rows = [list(row) for row in ws.iter_rows(values_only=True)]
+        wb = load_workbook(BytesIO(content), data_only=True, read_only=True)
+        try:
+            ws = wb.active
+            all_rows = [list(row) for row in ws.iter_rows(values_only=True)]
+        finally:
+            wb.close()
         if not all_rows:
             from common.error import AppError
             raise AppError('Файл данных пустой.')

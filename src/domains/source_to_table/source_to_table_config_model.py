@@ -3,7 +3,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import BigInteger, CheckConstraint, DateTime, ForeignKey, Index, String, Text, func
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, DateTime, ForeignKey, Index, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from config.db_orm_sqlalchemy.db_base_config import Base
@@ -25,6 +25,7 @@ class SourceToTableConfigModel(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     map_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     chunk_size: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    is_auto_generated: Mapped[bool] = mapped_column(Boolean, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     created_by: Mapped[int] = mapped_column(BigInteger, ForeignKey('users.id'), nullable=False)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

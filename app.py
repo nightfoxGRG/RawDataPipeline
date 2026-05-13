@@ -21,6 +21,8 @@ from domains.generator.sql_generator_service import SqlGeneratorService
 from domains.configurator.table_config_generator_service import TableConfigGeneratorService
 from domains.source_to_table.source_to_table_service import SourceToTableService
 from domains.source_to_table.source_to_table_schema_service import SourceToTableSchemaService
+from domains.loader.loader_by_table_config_service import LoaderByTableConfigService
+from domains.loader.loader_by_directory_service import LoaderByDirectoryService
 from config.config_loader import get_config
 
 _SYSTEM_SCHEMA = 'system'
@@ -29,6 +31,8 @@ _sql_generator = SqlGeneratorService()
 _table_config_generator = TableConfigGeneratorService()
 _source_to_table_service = SourceToTableService()
 _source_to_table_schema_service = SourceToTableSchemaService()
+_loader_by_table_config_service = LoaderByTableConfigService()
+_loader_by_directory_service = LoaderByDirectoryService()
 
 
 def create_app() -> Flask:
@@ -62,7 +66,7 @@ def create_app() -> Flask:
 
         def _generate_stub_token():
             header = {"alg": "none", "typ": "JWT"}
-            payload = {"sub": "LOCAL_USER"}
+            payload = {"sub": "USER1"}
             header_b64 = base64.urlsafe_b64encode(json.dumps(header).encode()).decode().rstrip('=')
             payload_b64 = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip('=')
             signature = ""
@@ -150,6 +154,18 @@ def create_app() -> Flask:
     @app.get('/loader')
     def get_loader():
         return render_template('loader.html')
+
+    @app.post('/loader/load_by_table_config_from_directory')
+    def post_loader_load_by_table_config_from_directory():
+        return _loader_by_table_config_service.load_from_directory(request)
+
+    @app.get('/loader/directory/configs')
+    def get_loader_directory_configs():
+        return _loader_by_directory_service.list_configs()
+
+    @app.post('/loader/directory/load')
+    def post_loader_directory_load():
+        return _loader_by_directory_service.load_from_directory(request)
 
     @app.get('/analyzer')
     def get_analyzer():

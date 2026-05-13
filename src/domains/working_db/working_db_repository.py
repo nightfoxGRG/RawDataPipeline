@@ -12,3 +12,9 @@ class WorkingDbRepository(metaclass=SingletonMeta):
     def execute_ddl(self, db_id: int, schema: str, sql: str) -> None:
         self._session.execute(sa_text(f'SET search_path TO "{schema}"'))
         self._session.connection().exec_driver_sql(sql)
+
+    def execute_insert_batch(self, db_id: int, schema: str, sql: str, params: list[dict]) -> None:
+        if not params:
+            return
+        self._session.execute(sa_text(f'SET search_path TO "{schema}"'))
+        self._session.execute(sa_text(sql), params)

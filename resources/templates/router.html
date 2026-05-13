@@ -38,30 +38,30 @@
         <button type="button" id="btn-new-mapping" onclick="openNewMappingModal()">Новый маппинг</button>
         <button type="button" id="btn-delete-mapping" class="btn-danger" style="display:none" onclick="openDeleteMappingConfirm()">Удалить маппинг</button>
       </div>
-      <div id="chunk-size-row" class="upload-buttons" style="display:none;margin-top:8px;align-items:center;gap:8px">
-        <label for="chunk-size-input" style="font-size:14px;white-space:nowrap">Размер блока:</label>
-        <input type="number" id="chunk-size-input" min="1" step="1" value="1000"
-               style="width:100px;padding:5px 8px;border:1px solid #cfd2d6;border-radius:6px;font-size:14px;height:32px;box-sizing:border-box">
+      <div id="chunk-size-row" class="upload-buttons" style="display:none;margin-top:8px;align-items:center;gap:16px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <label for="chunk-size-input" style="font-size:14px;white-space:nowrap">Размер блока:</label>
+          <input type="number" id="chunk-size-input" min="1" step="1" value="1000"
+                 style="width:100px;padding:5px 8px;border:1px solid #cfd2d6;border-radius:6px;font-size:14px;height:32px;box-sizing:border-box">
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;font-size:14px;white-space:nowrap;color:#5f6368;cursor:default;user-select:none">
+          <input type="checkbox" id="is-auto-generated-cb" disabled style="width:14px;height:14px;margin:0;flex-shrink:0;cursor:default;accent-color:#1976d2">
+          Сгенерирован автоматически
+        </label>
       </div>
 
       <div id="mapping-schema" class="mapping-schema" style="display:none">
-        <div class="schema-toolbar">
-          <div class="schema-toolbar-source">
-            <input type="text" id="schema-search-source" class="schema-search-input" placeholder="Поиск в источнике">
-          </div>
-          <div class="schema-toolbar-table">
-            <input type="text" id="schema-search-table" class="schema-search-input" placeholder="Поиск в таблице">
-          </div>
-        </div>
-
         <div class="schema-body" id="schema-body">
           <div class="schema-side schema-source">
+            <div style="padding:0 0 6px 0">
+              <input type="text" id="schema-search-source" class="schema-search-input" placeholder="Поиск в источнике">
+            </div>
             <table class="schema-tbl">
               <thead>
                 <tr>
                   <th class="schema-th-move"></th>
                   <th id="schema-source-col1-header" class="schema-th-1">Код колонки</th>
-                  <th class="schema-th-2">Описание</th>
+                  <th id="schema-source-th-desc" class="schema-th-2">Описание</th>
                   <th class="schema-th-del"></th>
                 </tr>
               </thead>
@@ -72,6 +72,9 @@
             </div>
           </div>
           <div class="schema-side schema-table">
+            <div style="padding:0 0 6px 0">
+              <input type="text" id="schema-search-table" class="schema-search-input" placeholder="Поиск в таблице">
+            </div>
             <table class="schema-tbl">
               <thead>
                 <tr>
@@ -452,6 +455,7 @@
           }
 
           document.getElementById('chunk-size-input').value = data.chunk_size || 1000;
+          document.getElementById('is-auto-generated-cb').checked = !!data.is_auto_generated;
 
           schemaState.tableRows = (data.table_columns || []).map(function (c) {
             return { id: _newRowId(), name: c.name, function: c.function, functionLocked: !!c.function_locked, description: c.description };
@@ -674,6 +678,8 @@
         document.getElementById('mapping-schema').style.display = 'block';
         var srcHeader1 = document.getElementById('schema-source-col1-header');
         srcHeader1.textContent = schemaState.mappingType === 'number' ? 'Номер колонки' : 'Код колонки';
+        var showDesc = schemaState.mappingType !== 'name';
+        document.getElementById('schema-source-th-desc').style.display = showDesc ? '' : 'none';
 
         // source rows
         var srcContainer = document.getElementById('schema-source-rows');
@@ -699,6 +705,7 @@
               else if (String(n) !== inp1.value) { inp1.value = String(n); }
             }
             r.value = inp1.value;
+            _checkSourceDuplicates();
             if (!jsPlumbInstance) return;
             var hasValue = !!String(inp1.value || '').trim();
             var ep = jsPlumbInstance.getEndpoint('ep-src-' + r.id);
@@ -715,15 +722,19 @@
           td1.appendChild(wrap1);
 
           var td2 = document.createElement('td');
-          var wrap2 = document.createElement('div');
-          wrap2.className = 'schema-cell-wrap';
-          var inp2 = document.createElement('input');
-          inp2.type = 'text';
-          inp2.className = 'schema-cell-input';
-          inp2.value = row.description || '';
-          inp2.addEventListener('input', function () { _markDirty(); row.description = inp2.value; });
-          wrap2.appendChild(inp2);
-          td2.appendChild(wrap2);
+          if (showDesc) {
+            var wrap2 = document.createElement('div');
+            wrap2.className = 'schema-cell-wrap';
+            var inp2 = document.createElement('input');
+            inp2.type = 'text';
+            inp2.className = 'schema-cell-input';
+            inp2.value = row.description || '';
+            inp2.addEventListener('input', function () { _markDirty(); row.description = inp2.value; });
+            wrap2.appendChild(inp2);
+            td2.appendChild(wrap2);
+          } else {
+            td2.style.display = 'none';
+          }
 
           var tdMove = document.createElement('td');
           tdMove.className = 'schema-td-move';
@@ -775,7 +786,13 @@
           tr.dataset.rowId = row.id;
 
           var td1 = document.createElement('td');
-          td1.textContent = row.name || '';
+          td1.style.padding = '0';
+          var wrap1t = document.createElement('div');
+          wrap1t.className = 'schema-cell-wrap';
+          wrap1t.style.paddingLeft = '12px';
+          wrap1t.style.paddingRight = '12px';
+          wrap1t.textContent = row.name || '';
+          td1.appendChild(wrap1t);
 
           var td2 = document.createElement('td');
           td2.style.padding = '0';
@@ -811,7 +828,13 @@
           td2.appendChild(fnSel);
 
           var td3 = document.createElement('td');
-          td3.textContent = row.description || '';
+          td3.style.padding = '0';
+          var wrap3t = document.createElement('div');
+          wrap3t.className = 'schema-cell-wrap';
+          wrap3t.style.paddingLeft = '12px';
+          wrap3t.style.paddingRight = '12px';
+          wrap3t.textContent = row.description || '';
+          td3.appendChild(wrap3t);
 
           tr.appendChild(td1);
           tr.appendChild(td2);
@@ -819,7 +842,30 @@
           tblContainer.appendChild(tr);
         });
 
+        _checkSourceDuplicates();
         window.requestAnimationFrame(_initJsPlumbConnections);
+      }
+
+      function _checkSourceDuplicates() {
+        var count = {};
+        schemaState.sourceRows.forEach(function (r) {
+          var val = String(r.value || '').trim().toLowerCase();
+          if (!val) return;
+          count[val] = (count[val] || 0) + 1;
+        });
+        schemaState.sourceRows.forEach(function (r) {
+          var val = String(r.value || '').trim().toLowerCase();
+          var el = document.getElementById('src-' + r.id);
+          if (!el) return;
+          var inp = el.querySelector('.schema-cell-input');
+          if (!inp) return;
+          if (val && count[val] > 1) {
+            inp.classList.add('schema-cell-input--error');
+          } else {
+            inp.classList.remove('schema-cell-input--error');
+          }
+        });
+        return Object.keys(count).some(function (k) { return count[k] > 1; });
       }
 
       function _connTooltipText(conn) {
@@ -986,6 +1032,12 @@
 
       async function saveSchema() {
         if (!schemaState.tableName || !schemaState.mappingType) return;
+        if (_checkSourceDuplicates()) {
+          showErrors([schemaState.mappingType === 'number'
+            ? 'В источнике есть дублирующиеся номера колонок.'
+            : 'В источнике есть дублирующиеся названия колонок.']);
+          return;
+        }
         _syncArrowsFromJsPlumb();
         var rows = [];
         var srcById = {};
@@ -1025,7 +1077,7 @@
                 source_column: schemaState.mappingType === 'name' ? src.value : null,
                 source_column_number: schemaState.mappingType === 'number'
                   ? (src.value === '' ? null : Number(src.value)) : null,
-                source_column_description: src.description || null,
+                source_column_description: schemaState.mappingType === 'name' ? null : (src.description || null),
                 source_column_order: srcOrderById[a.sourceId] || 0,
               });
             });
@@ -1042,7 +1094,7 @@
             function: null,
             source_column: schemaState.mappingType === 'name' ? val : null,
             source_column_number: schemaState.mappingType === 'number' ? Number(val) : null,
-            source_column_description: r.description || null,
+            source_column_description: schemaState.mappingType === 'name' ? null : (r.description || null),
             source_column_order: i + 1,
           });
         });

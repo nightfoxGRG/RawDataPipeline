@@ -77,17 +77,18 @@ create table user_setting
 
 create table source_to_table_config
 (
-    id          bigserial primary key,
-    project_id  bigint       not null references project (id),
-    table_name  varchar(200) not null,
-    code        varchar(200) not null,
-    description text,
-    map_type    varchar(100),
-    chunk_size  int not null,
-    created_at  timestamptz  not null default now(),
-    created_by  bigint       not null references users (id),
-    updated_at  timestamptz,
-    updated_by  bigint references users (id),
+    id                bigserial primary key,
+    project_id        bigint       not null references project (id),
+    table_name        varchar(200) not null,
+    code              varchar(200) not null,
+    description       text,
+    map_type          varchar(100),
+    is_auto_generated boolean      not null,
+    chunk_size        int          not null,
+    created_at        timestamptz  not null default now(),
+    created_by        bigint       not null references users (id),
+    updated_at        timestamptz,
+    updated_by        bigint references users (id),
 
     CONSTRAINT allowed_map_type CHECK (map_type IN ('MAP_BY_COLUMN_NAME', 'MAP_BY_COLUMN_NUMBER'))
 );

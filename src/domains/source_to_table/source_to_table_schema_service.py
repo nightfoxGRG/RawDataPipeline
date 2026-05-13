@@ -63,6 +63,7 @@ class SourceToTableSchemaService(metaclass=SingletonMeta):
             code=code,
             description=description,
             chunk_size=1000,
+            is_auto_generated=False,
             created_by=user.user_id,
         )
         saved = self._source_to_table_config_repository.save(config)
@@ -148,6 +149,7 @@ class SourceToTableSchemaService(metaclass=SingletonMeta):
             mapping_type=mapping_type,
             has_mapping=len(mapping) > 0,
             chunk_size=config.chunk_size if config.chunk_size else 1000,
+            is_auto_generated=bool(config.is_auto_generated),
         )
 
     def save_mapping(self, payload: dict) -> Response:
