@@ -81,17 +81,78 @@ body {
 
 .sidebar-user {
   border-top: 1px solid #e0e4ea;
-  padding: 14px 10px 18px;
+  padding: 10px 10px 14px;
+  position: relative;
 }
 
-.sidebar-user .user-info {
-  display: block;
+.user-menu-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 6px 6px;
+  border-radius: 6px;
+  transition: background 0.12s;
+  min-width: 0;
+}
+
+.user-menu-trigger:hover {
+  background: #f1f3f4;
+}
+
+.user-avatar {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #e8eaed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #5f6368;
+}
+
+.user-menu-name {
+  flex: 1;
+  font-size: 13px;
   color: #3c4043;
-  font-size: 14px;
-  line-height: 1.4;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.user-menu-dots {
+  flex-shrink: 0;
+  font-size: 16px;
+  color: #5f6368;
+  line-height: 1;
+}
+
+.user-dropdown {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 10px;
+  right: 10px;
+  background: #fff;
+  border: 1px solid #e0e4ea;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  overflow: hidden;
+  z-index: 200;
+}
+
+.user-dropdown-item {
+  display: block;
+  padding: 10px 16px;
+  font-size: 13px;
+  color: #3c4043;
+  text-decoration: none;
+  transition: background 0.1s;
+}
+
+.user-dropdown-item:hover {
+  background: #f1f3f4;
 }
 
 .nav-link {
