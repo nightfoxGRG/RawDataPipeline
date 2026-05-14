@@ -15,8 +15,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.pool import NullPool
 
 from common.error import AppError
-from config.db_orm_sqlalchemy.db_session_config import session_scope
-from domains.db_setting.db_setting_model import DbSettingModel
+from domains.db_setting.db_setting_repository import DbConnectionInfo, DbSettingRepository
 
 
 class WorkingDbEngineStrategy(ABC):
@@ -31,27 +30,28 @@ class WorkingDbEngineStrategy(ABC):
         ...
 
 
-def _build_working_db_url(setting: DbSettingModel) -> str:
-    user = quote_plus(setting.db_user)
-    password = quote_plus(setting.password) if setting.password else ''
+def _build_working_db_url(info: DbConnectionInfo) -> str:
+    user = quote_plus(info.login)
+    password = quote_plus(info.password) if info.password else ''
     auth = f'{user}:{password}@' if password else f'{user}@'
-    return f'postgresql+psycopg2://{auth}{setting.host}:{setting.port}/{setting.name}'
+    return f'postgresql+psycopg2://{auth}{info.host}:{info.port}/{info.name}'
 
 
-def _load_setting(db_id: int) -> DbSettingModel:
-    with session_scope() as session:
-        setting = session.get(DbSettingModel, db_id)
-        if setting is None:
-            raise AppError(f'Настройки рабочей БД не найдены: db_id={db_id}.')
-        return setting
+def _load_connection_info(db_id: int) -> DbConnectionInfo:
+    from common.context_service import ContextService
+    user_id = ContextService.get_user_info().user_id
+    info = DbSettingRepository().find_connection_info(db_id, user_id)
+    if info is None:
+        raise AppError(f'Настройки подключения к БД не найдены (db_id={db_id}, user_id={user_id}).')
+    return info
 
 
 class NoCacheStrategy(WorkingDbEngineStrategy):
     """Engine на каждый запрос: без пула, с немедленным dispose() при release."""
 
     def acquire(self, db_id: int) -> Engine:
-        setting = _load_setting(db_id)
-        url = _build_working_db_url(setting)
+        info = _load_connection_info(db_id)
+        url = _build_working_db_url(info)
         return create_engine(url, poolclass=NullPool, pool_pre_ping=True)
 
     def release(self, engine: Engine) -> None:

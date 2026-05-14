@@ -23,19 +23,32 @@ values ('TECH_USER', 'Технический пользователь', true);
 create table db_setting
 (
     id         bigserial primary key,
-    user_id    bigint       not null references users (id),
     db_label   varchar(100) not null,
     host       text         not null,
     port       int          not null,
     name       text         not null,
-    db_user    text         not null,
-    password   text         not null,
     created_at timestamptz  not null default now(),
     created_by bigint       not null references users (id),
     updated_at timestamptz,
-    updated_by bigint references users (id)
+    updated_by bigint references users (id),
+
+    constraint unique_db_setting_host_port_name unique (host, port, name)
 );
 
+create table db_setting_credential
+(
+    id            bigserial primary key,
+    user_id       bigint      not null references users (id),
+    db_setting_id bigint      not null references db_setting (id),
+    login         text        not null,
+    password      text        not null,
+    created_at    timestamptz not null default now(),
+    created_by    bigint      not null references users (id),
+    updated_at    timestamptz,
+    updated_by    bigint references users (id),
+
+    constraint unique_user_db_setting_credential unique (user_id, db_setting_id)
+);
 
 create table project
 (

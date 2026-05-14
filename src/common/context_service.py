@@ -42,4 +42,4 @@ class ContextService(metaclass=SingletonMeta):
             data = json.loads(payload)
         except (ValueError, json.JSONDecodeError):
             return None
-        return data.get('sub') or data.get('subject_id')
+        return data.get('email')

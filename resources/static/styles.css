@@ -115,6 +115,15 @@ body {
   background: #e8f0fe;
 }
 
+.nav-link--disabled {
+  color: #b0b0b0;
+  cursor: default;
+  pointer-events: none;
+}
+.nav-link--disabled:hover {
+  background: none;
+}
+
 /* ── Основной контент ── */
 .content {
   flex: 1;
@@ -420,6 +429,14 @@ button.btn-danger {
 
 button.btn-danger:hover {
   background: #c62828;
+}
+
+button:disabled, button:disabled.btn-danger {
+  background: #f0f0f0;
+  color: #c8c8c8;
+  border-color: #e8e8e8;
+  cursor: default;
+  pointer-events: none;
 }
 
 button:hover, .btn-save:hover, .btn-secondary:hover {

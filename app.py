@@ -8,14 +8,12 @@ _src = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src')
 if _src not in sys.path:
     sys.path.insert(0, _src)
 
-import base64
-import json
-
-from flask import Flask, Response, g, render_template, request, send_from_directory
+from flask import Flask, Response, g, redirect, render_template, request, send_from_directory, session, url_for
 from common.error import AppError
 from common.error_handler import register_error_handlers
 from common.project_paths import ProjectPaths
 from common.context_service import ContextService
+from common.keycloak_auth import init_oauth, oauth
 from config.db_migration_yoyo.db_migrate_config_at_start import run_migrations_on_start
 from domains.generator.sql_generator_service import SqlGeneratorService
 from domains.configurator.table_config_generator_service import TableConfigGeneratorService
@@ -23,6 +21,12 @@ from domains.source_to_table.source_to_table_service import SourceToTableService
 from domains.source_to_table.source_to_table_schema_service import SourceToTableSchemaService
 from domains.loader.loader_by_table_config_service import LoaderByTableConfigService
 from domains.loader.loader_by_directory_service import LoaderByDirectoryService
+from domains.analyzer.analyzer_service import AnalyzerService
+from domains.db_setting.db_setting_service import DbSettingService
+from domains.db_setting_credential.db_setting_credential_service import DbSettingCredentialService
+from domains.project.project_service import ProjectService
+from domains.users.user_setting_service import UserSettingService
+from domains.users.users_service import UsersService
 from config.config_loader import get_config
 
 _SYSTEM_SCHEMA = 'system'
@@ -33,18 +37,27 @@ _source_to_table_service = SourceToTableService()
 _source_to_table_schema_service = SourceToTableSchemaService()
 _loader_by_table_config_service = LoaderByTableConfigService()
 _loader_by_directory_service = LoaderByDirectoryService()
+_analyzer_service = AnalyzerService()
+_db_setting_service = DbSettingService()
+_db_setting_credential_service = DbSettingCredentialService()
+_project_service = ProjectService()
+_user_setting_service = UserSettingService()
+_users_service = UsersService()
+
+_PUBLIC_ENDPOINTS = {'login', 'callback', 'logout', 'static'}
 
 
 def create_app() -> Flask:
     app = Flask(
         __name__,
-        template_folder=str(ProjectPaths.TEMPLATES),  # папка с шаблонами
-        static_folder=str(ProjectPaths.STATIC)  # папка со статикой (если есть)
+        template_folder=str(ProjectPaths.TEMPLATES),
+        static_folder=str(ProjectPaths.STATIC)
     )
 
     cfg = get_config()
 
-    # Определяем режим запуска: локальный (PyInstaller .exe/.app) или серверный
+    app.secret_key = cfg.get('app', {}).get('secret_key', 'dev-secret-change-me')
+
     _run_mode = 'local' if getattr(sys, 'frozen', False) else 'server'
     _project_name = cfg.get('app', {}).get('project_name', 'DataPipelinePro')
 
@@ -52,30 +65,22 @@ def create_app() -> Flask:
     if not os.environ.get('FLASK_TESTING'):
         run_migrations_on_start()
 
+    init_oauth(app)
     register_error_handlers(app)
 
     @app.before_request
     def load_user_context():
         g.current_user = None
-
-# до настройки аутентификации, для разработки и тестов можно использовать заглушку с фиксированным токеном
-        # auth_header = request.headers.get('Authorization', '')
-        # if not auth_header.lower().startswith('bearer '):
-        #     return
-        # token = auth_header.split(' ', 1)[1].strip()
-
-        def _generate_stub_token():
-            header = {"alg": "none", "typ": "JWT"}
-            payload = {"sub": "USER1"}
-            header_b64 = base64.urlsafe_b64encode(json.dumps(header).encode()).decode().rstrip('=')
-            payload_b64 = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip('=')
-            signature = ""
-            return f"{header_b64}.{payload_b64}.{signature}"
-
-        token = _generate_stub_token()
-
+        if request.endpoint in _PUBLIC_ENDPOINTS:
+            return
+        token = session.get('access_token')
+        if not token:
+            return redirect(url_for('login'))
         context_service = ContextService()
         g.current_user = context_service.load_user_context(token)
+        if g.current_user is None:
+            session.clear()
+            return redirect(url_for('login'))
 
     @app.context_processor
     def inject_globals():
@@ -87,11 +92,46 @@ def create_app() -> Flask:
 
     @app.teardown_request
     def teardown_request(error=None):
-        # Явный сброс контекста после запроса
         g.current_user = None
-        """Очищает контекст БД после каждого запроса."""
         if DbContext().is_active():
             DbContext().clear()
+
+    # ── Аутентификация ────────────────────────────────────────────────────
+
+    @app.get('/login')
+    def login():
+        redirect_uri = url_for('callback', _external=True)
+        return oauth.keycloak.authorize_redirect(redirect_uri)
+
+    @app.get('/callback')
+    def callback():
+        token = oauth.keycloak.authorize_access_token()
+        userinfo = token.get('userinfo') or {}
+        subject_id = userinfo.get('email')
+        if not subject_id:
+            return redirect(url_for('login'))
+        _users_service.get_or_create_user(
+            subject_id=subject_id,
+            first_name=userinfo.get('given_name') or '',
+            last_name=userinfo.get('family_name') or '',
+            email=userinfo.get('email') or '',
+        )
+        session['access_token'] = token['access_token']
+        return redirect(url_for('index'))
+
+    @app.get('/logout')
+    def logout():
+        session.clear()
+        kc = get_config().get('keycloak', {})
+        logout_url = (
+            f"{kc.get('server_url', '')}/realms/{kc.get('realm', 'master')}"
+            f"/protocol/openid-connect/logout"
+            f"?post_logout_redirect_uri={url_for('login', _external=True)}"
+            f"&client_id={kc.get('client_id', '')}"
+        )
+        return redirect(logout_url)
+
+    # ── Параметризатор ────────────────────────────────────────────────────
 
     @app.route('/', methods=['GET'])
     def index():
@@ -100,6 +140,48 @@ def create_app() -> Flask:
     @app.get('/parametrizer')
     def get_parametrizer():
         return render_template('parametrizer.html')
+
+    @app.get('/parametrizer/db-settings')
+    def get_db_settings():
+        return _db_setting_service.list_settings()
+
+    @app.post('/parametrizer/db-settings')
+    def post_db_setting():
+        return _db_setting_service.save_setting(request.get_json(force=True, silent=True) or {})
+
+    @app.delete('/parametrizer/db-settings/<int:setting_id>')
+    def delete_db_setting(setting_id: int):
+        return _db_setting_service.delete_setting(setting_id)
+
+    @app.get('/parametrizer/db-credentials')
+    def get_db_credentials():
+        return _db_setting_credential_service.list_credentials()
+
+    @app.post('/parametrizer/db-credentials')
+    def post_db_credential():
+        return _db_setting_credential_service.save_credential(request.get_json(force=True, silent=True) or {})
+
+    @app.get('/parametrizer/projects')
+    def get_projects():
+        return _project_service.list_projects()
+
+    @app.post('/parametrizer/projects')
+    def post_project():
+        return _project_service.save_project(request.get_json(force=True, silent=True) or {})
+
+    @app.delete('/parametrizer/projects/<int:project_id>')
+    def delete_project(project_id: int):
+        return _project_service.delete_project(project_id)
+
+    @app.get('/parametrizer/actual-project')
+    def get_actual_project():
+        return _user_setting_service.get_actual_project()
+
+    @app.post('/parametrizer/actual-project')
+    def post_actual_project():
+        return _user_setting_service.set_actual_project(request.get_json(force=True, silent=True) or {})
+
+    # ── Маршрутизатор ─────────────────────────────────────────────────────
 
     @app.get('/router')
     def get_router():
@@ -151,6 +233,8 @@ def create_app() -> Flask:
     def delete_source_to_table_schema_mapping():
         return _source_to_table_schema_service.delete_mapping(request.args.get('table_name', ''))
 
+    # ── Загружатор ────────────────────────────────────────────────────────
+
     @app.get('/loader')
     def get_loader():
         return render_template('loader.html')
@@ -167,9 +251,34 @@ def create_app() -> Flask:
     def post_loader_directory_load():
         return _loader_by_directory_service.load_from_directory(request)
 
+    # ── Анализатор ────────────────────────────────────────────────────────
+
     @app.get('/analyzer')
     def get_analyzer():
         return render_template('analyzer.html')
+
+    @app.get('/analyzer/tables')
+    def get_analyzer_tables():
+        from flask import jsonify
+        tables = _analyzer_service.get_tables()
+        return jsonify(tables=tables)
+
+    @app.post('/analyzer/run')
+    def post_analyzer_run():
+        from flask import jsonify, send_file
+        import io
+        body = request.get_json(force=True, silent=True) or {}
+        tables = body.get('tables') or []
+        chunk_size = int(body.get('chunk_size') or 1000)
+        xlsx_bytes = _analyzer_service.analyze_tables(tables, chunk_size)
+        return send_file(
+            io.BytesIO(xlsx_bytes),
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name='analyzer_report.xlsx',
+        )
+
+    # ── Генератор ─────────────────────────────────────────────────────────
 
     @app.get('/generator')
     def get_generator():
@@ -193,6 +302,8 @@ def create_app() -> Flask:
     @app.post('/sql_execute')
     def post_sql_execute():
         return _sql_generator.execute_sql_in_working_db(request.form)
+
+    # ── Конфигуратор ──────────────────────────────────────────────────────
 
     @app.get('/configurator')
     def get_configurator():
@@ -236,7 +347,6 @@ def create_app() -> Flask:
         sql_content = request.form.get('sql_output', '').strip()
         if not sql_content:
             raise AppError('SQL для скачивания не найден.')
-
         return Response(
             sql_content,
             mimetype='application/sql',
@@ -245,7 +355,8 @@ def create_app() -> Flask:
 
     return app
 
+
 app = create_app()
 
 if __name__ == '__main__':
-    app.run(host='127.0.0.1', port=8080, debug=True, use_reloader=False)
+    app.run(host='localhost', port=8080, debug=True, use_reloader=False)

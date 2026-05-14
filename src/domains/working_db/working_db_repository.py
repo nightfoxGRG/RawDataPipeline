@@ -18,3 +18,17 @@ class WorkingDbRepository(metaclass=SingletonMeta):
             return
         self._session.execute(sa_text(f'SET search_path TO "{schema}"'))
         self._session.execute(sa_text(sql), params)
+
+    def fetch_chunk(self, db_id: int, schema: str, table: str, offset: int, limit: int) -> list[tuple]:
+        sql = sa_text(
+            f'SELECT * FROM "{schema}"."{table}" OFFSET :offset LIMIT :limit'
+        )
+        return self._session.execute(sql, {'offset': offset, 'limit': limit}).fetchall()
+
+    def get_column_names(self, db_id: int, schema: str, table: str) -> list[str]:
+        sql = sa_text(
+            'SELECT column_name FROM information_schema.columns '
+            'WHERE table_schema = :s AND table_name = :t ORDER BY ordinal_position'
+        )
+        rows = self._session.execute(sql, {'s': schema, 't': table}).fetchall()
+        return [r[0] for r in rows]

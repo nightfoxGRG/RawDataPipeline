@@ -14,6 +14,191 @@
 
     <div class="content">
       <h1>Анализатор</h1>
+      <hr class="section-divider">
+
+      <p class="hint">Анализ таблиц рабочей базы данных на подобные дубликаты. Результат выгружается в Excel-файл.</p>
+
+      <div class="upload-buttons">
+        <button type="button" onclick="startAnalyzeOne()">Анализ таблицы</button>
+        <button type="button" onclick="startAnalyzeAll()">Анализ всех таблиц</button>
+      </div>
+
+      <div id="analyzer-spinner" class="spinner" style="display:none;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:1100">
+        <span class="spinner-icon"></span> Анализ…
+      </div>
     </div>
+
+    <!-- Выбор таблицы -->
+    <div id="table-select-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeTableModal()">
+      <div class="modal" style="max-width:560px;width:90%">
+        <div class="modal-header">
+          <h2 class="modal-title">Выбор таблицы</h2>
+          <button type="button" class="modal-close" onclick="closeTableModal()">&#x2715;</button>
+        </div>
+        <div class="modal-divider"></div>
+        <div class="modal-body" style="padding:0">
+          <div style="max-height:50vh;overflow-y:auto;border-bottom:1px solid #e8eaed">
+            <table style="width:100%;border-collapse:collapse;font-size:13px">
+              <tbody id="table-select-tbody"></tbody>
+            </table>
+          </div>
+          <div style="padding:12px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+            <label style="font-size:13px;color:#3c4043;display:flex;align-items:center;gap:8px;white-space:nowrap">
+              Размер пакета:
+              <input id="chunk-size-input" type="number" min="100" max="100000" value="1000"
+                style="width:90px;height:28px;border:1px solid #ccc;border-radius:4px;padding:0 8px;font-size:13px;box-sizing:border-box">
+            </label>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-modal-cancel" onclick="closeTableModal()">Отмена</button>
+          <button type="button" class="btn-modal-primary" id="table-select-confirm" onclick="confirmTableAnalysis()" disabled style="flex:none;width:auto;padding:0 28px">Анализировать</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Выбор размера пакета для «всех таблиц» -->
+    <div id="all-tables-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeAllTablesModal()">
+      <div class="modal" style="max-width:400px;width:90%">
+        <div class="modal-header">
+          <h2 class="modal-title">Анализ всех таблиц</h2>
+          <button type="button" class="modal-close" onclick="closeAllTablesModal()">&#x2715;</button>
+        </div>
+        <div class="modal-divider"></div>
+        <div class="modal-body">
+          <label style="font-size:13px;color:#3c4043;display:flex;align-items:center;gap:12px">
+            Размер пакета обработки:
+            <input id="all-chunk-size-input" type="number" min="100" max="100000" value="1000"
+              style="width:90px;height:28px;border:1px solid #ccc;border-radius:4px;padding:0 8px;font-size:13px;box-sizing:border-box">
+          </label>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-modal-cancel" onclick="closeAllTablesModal()">Отмена</button>
+          <button type="button" class="btn-modal-primary" onclick="confirmAllAnalysis()" style="flex:none;width:auto;padding:0 28px">Анализировать</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      var _selectedTable = null;
+      var _allTables = [];
+
+      function showErrors(msgs) {
+        alert(msgs.join('\n'));
+      }
+
+      // ── Анализ одной таблицы ─────────────────────────────────────────────
+
+      async function startAnalyzeOne() {
+        _selectedTable = null;
+        var tbody = document.getElementById('table-select-tbody');
+        tbody.innerHTML = '<tr><td style="padding:12px;color:#888;font-size:13px">Загрузка…</td></tr>';
+        document.getElementById('table-select-confirm').disabled = true;
+        document.getElementById('table-select-overlay').style.display = 'flex';
+
+        try {
+          var resp = await fetch('{{ url_for("get_analyzer_tables") }}', { headers: { 'Accept': 'application/json' } });
+          var data = await resp.json();
+          if (!resp.ok || data.errors) { closeTableModal(); showErrors(data.errors || ['Ошибка']); return; }
+          _allTables = data.tables || [];
+          tbody.innerHTML = '';
+          if (!_allTables.length) {
+            tbody.innerHTML = '<tr><td style="padding:12px;color:#888;font-size:13px">Нет таблиц</td></tr>';
+            return;
+          }
+          _allTables.forEach(function (tbl) {
+            var tr = document.createElement('tr');
+            tr.style.cursor = 'pointer';
+            var td = document.createElement('td');
+            td.textContent = tbl;
+            td.style.cssText = 'padding:7px 20px;font-size:13px;border-bottom:1px solid #e8eaed';
+            tr.appendChild(td);
+            tr.addEventListener('click', function () {
+              document.querySelectorAll('#table-select-tbody tr').forEach(function (r) {
+                r.style.background = '';
+                r.querySelectorAll('td').forEach(function (c) { c.style.color = ''; });
+              });
+              tr.style.background = '#e3f2fd';
+              td.style.color = '#1565c0';
+              _selectedTable = tbl;
+              document.getElementById('table-select-confirm').disabled = false;
+            });
+            tbody.appendChild(tr);
+          });
+        } catch (e) { closeTableModal(); showErrors(['Ошибка соединения: ' + e.message]); }
+      }
+
+      function closeTableModal() {
+        document.getElementById('table-select-overlay').style.display = 'none';
+        _selectedTable = null;
+      }
+
+      async function confirmTableAnalysis() {
+        if (!_selectedTable) return;
+        var table = _selectedTable;
+        var chunkSize = parseInt(document.getElementById('chunk-size-input').value) || 1000;
+        closeTableModal();
+        await runAnalysis([table], chunkSize);
+      }
+
+      // ── Анализ всех таблиц ───────────────────────────────────────────────
+
+      async function startAnalyzeAll() {
+        document.getElementById('all-tables-overlay').style.display = 'flex';
+      }
+
+      function closeAllTablesModal() {
+        document.getElementById('all-tables-overlay').style.display = 'none';
+      }
+
+      async function confirmAllAnalysis() {
+        var chunkSize = parseInt(document.getElementById('all-chunk-size-input').value) || 1000;
+        closeAllTablesModal();
+
+        var spinner = document.getElementById('analyzer-spinner');
+        spinner.style.display = 'flex';
+        try {
+          var resp = await fetch('{{ url_for("get_analyzer_tables") }}', { headers: { 'Accept': 'application/json' } });
+          var data = await resp.json();
+          if (!resp.ok || data.errors) { showErrors(data.errors || ['Ошибка']); return; }
+          var tables = data.tables || [];
+          if (!tables.length) { showErrors(['Нет таблиц для анализа.']); return; }
+          await runAnalysis(tables, chunkSize);
+        } catch (e) { showErrors(['Ошибка соединения: ' + e.message]); }
+        finally { spinner.style.display = 'none'; }
+      }
+
+      // ── Запуск анализа и скачивание Excel ───────────────────────────────
+
+      async function runAnalysis(tables, chunkSize) {
+        var spinner = document.getElementById('analyzer-spinner');
+        spinner.style.display = 'flex';
+        try {
+          var resp = await fetch('{{ url_for("post_analyzer_run") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tables: tables, chunk_size: chunkSize }),
+          });
+          if (!resp.ok) {
+            var err = await resp.json().catch(function () { return {}; });
+            showErrors(err.errors || ['Ошибка анализа']);
+            return;
+          }
+          var blob = await resp.blob();
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = 'analyzer_report.xlsx';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+        } catch (e) {
+          showErrors(['Ошибка соединения: ' + e.message]);
+        } finally {
+          spinner.style.display = 'none';
+        }
+      }
+    </script>
   </body>
 </html>

@@ -13,7 +13,569 @@
     {% include '_menu.html' %}
 
     <div class="content">
-      <h1>Настройка параметров</h1>
+      <h1>Параметризатор</h1>
+      <hr class="section-divider">
+
+      <p class="hint">Настройки базы данных.</p>
+
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <select id="db-settings-select" class="schema-table-select" style="min-width:420px;max-width:560px;width:auto;height:30px" onchange="onDbSettingSelect()">
+          <option value="">— выберите подключение —</option>
+        </select>
+        <button type="button" id="btn-edit-db" style="margin-top:0" disabled onclick="editSelected()">Редактировать</button>
+        <button type="button" style="margin-top:0" onclick="openDbSettingModal(null)">Добавить</button>
+      </div>
+
+      <hr class="section-divider" style="margin-top:24px">
+
+      <p class="hint">Учётные данные подключений.</p>
+
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <select id="db-cred-select" class="schema-table-select" style="min-width:420px;max-width:560px;width:auto;height:30px" onchange="onCredSelect()">
+          <option value="">— выберите учётные данные —</option>
+        </select>
+        <button type="button" id="btn-edit-cred" style="margin-top:0" disabled onclick="editSelectedCred()">Редактировать</button>
+      </div>
+
+      <hr class="section-divider" style="margin-top:24px">
+
+      <p class="hint">Проекты.</p>
+
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <select id="project-select" class="schema-table-select" style="min-width:420px;max-width:560px;width:auto;height:30px" onchange="onProjectSelect()">
+          <option value="">— выберите проект —</option>
+        </select>
+        <button type="button" id="btn-edit-project" style="margin-top:0" disabled onclick="editSelectedProject()">Редактировать</button>
+        <button type="button" style="margin-top:0" onclick="openProjectModal(null)">Добавить</button>
+      </div>
+
+      <hr class="section-divider" style="margin-top:24px">
+
+      <p class="hint">Актуальный проект.</p>
+
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <select id="actual-project-select" class="schema-table-select" style="min-width:420px;max-width:560px;width:auto;height:30px">
+          <option value="">— не выбран —</option>
+        </select>
+        <button type="button" style="margin-top:0" onclick="saveActualProject()">Сохранить</button>
+      </div>
     </div>
+
+    <!-- Модал создания/редактирования -->
+    <div id="db-setting-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeDbSettingModal()">
+      <div class="modal" style="max-width:500px;width:90%">
+        <div class="modal-header">
+          <h2 class="modal-title" id="db-setting-modal-title">Настройка БД</h2>
+          <button type="button" class="modal-close" onclick="closeDbSettingModal()">&#x2715;</button>
+        </div>
+        <div class="modal-divider"></div>
+        <div class="modal-body">
+          <input type="hidden" id="db-setting-id">
+          <div class="form-group" style="margin-bottom:14px">
+            <label class="form-label">Наименование подключения</label>
+            <input id="db-setting-label" type="text" class="form-input" placeholder="Например: Рабочая БД проекта">
+          </div>
+          <div class="form-group" style="margin-bottom:14px">
+            <label class="form-label">Хост</label>
+            <input id="db-setting-host" type="text" class="form-input" placeholder="localhost или IP">
+          </div>
+          <div class="form-group" style="margin-bottom:14px">
+            <label class="form-label">Порт</label>
+            <input id="db-setting-port" type="number" class="form-input" placeholder="5432" min="1" max="65535" style="width:120px">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Имя базы данных</label>
+            <input id="db-setting-name" type="text" class="form-input" placeholder="my_database">
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" id="btn-modal-delete-db" class="btn-modal-primary" style="flex:none;width:auto;padding:0 28px;background:#c62828;display:none" onclick="deleteFromModal()">Удалить</button>
+          <div style="flex:1"></div>
+          <button type="button" class="btn-modal-cancel" onclick="closeDbSettingModal()">Отмена</button>
+          <button type="button" class="btn-modal-primary" style="flex:none;width:auto;padding:0 28px" onclick="saveDbSetting()">Сохранить</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Подтверждение удаления -->
+    <div id="db-setting-delete-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeDeleteModal()">
+      <div class="modal" style="max-width:420px;width:90%">
+        <div class="modal-header">
+          <h2 class="modal-title">Удаление</h2>
+          <button type="button" class="modal-close" onclick="closeDeleteModal()">&#x2715;</button>
+        </div>
+        <div class="modal-divider"></div>
+        <div class="modal-body">
+          <p style="margin:0;font-size:14px;color:#3c4043">Удалить настройку подключения <strong id="db-setting-delete-label"></strong>?</p>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-modal-cancel" onclick="closeDeleteModal()">Отмена</button>
+          <button type="button" class="btn-modal-primary" style="flex:none;width:auto;padding:0 28px;background:#c62828" onclick="confirmDeleteDbSetting()">Удалить</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Модал создания/редактирования проекта -->
+    <div id="project-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeProjectModal()">
+      <div class="modal" style="max-width:500px;width:90%">
+        <div class="modal-header">
+          <h2 class="modal-title" id="project-modal-title">Проект</h2>
+          <button type="button" class="modal-close" onclick="closeProjectModal()">&#x2715;</button>
+        </div>
+        <div class="modal-divider"></div>
+        <div class="modal-body">
+          <input type="hidden" id="project-id">
+          <div class="form-group" style="margin-bottom:14px">
+            <label class="form-label">Код проекта</label>
+            <input id="project-code" type="text" class="form-input" placeholder="Например: PROJ001">
+          </div>
+          <div class="form-group" style="margin-bottom:14px">
+            <label class="form-label">Описание</label>
+            <input id="project-description" type="text" class="form-input" placeholder="Краткое описание">
+          </div>
+          <div class="form-group" style="margin-bottom:14px">
+            <label class="form-label">Подключение к БД</label>
+            <select id="project-db-setting" class="form-input" style="height:30px">
+              <option value="">— выберите подключение —</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Схема БД</label>
+            <input id="project-schema" type="text" class="form-input" placeholder="my_schema">
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" id="btn-modal-delete-project" class="btn-modal-primary" style="flex:none;width:auto;padding:0 28px;background:#c62828;display:none" onclick="deleteProjectFromModal()">Удалить</button>
+          <div style="flex:1"></div>
+          <button type="button" class="btn-modal-cancel" onclick="closeProjectModal()">Отмена</button>
+          <button type="button" class="btn-modal-primary" style="flex:none;width:auto;padding:0 28px" onclick="saveProject()">Сохранить</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Подтверждение удаления проекта -->
+    <div id="project-delete-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeProjectDeleteModal()">
+      <div class="modal" style="max-width:420px;width:90%">
+        <div class="modal-header">
+          <h2 class="modal-title">Удаление</h2>
+          <button type="button" class="modal-close" onclick="closeProjectDeleteModal()">&#x2715;</button>
+        </div>
+        <div class="modal-divider"></div>
+        <div class="modal-body">
+          <p style="margin:0;font-size:14px;color:#3c4043">Удалить проект <strong id="project-delete-label"></strong>?</p>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-modal-cancel" onclick="closeProjectDeleteModal()">Отмена</button>
+          <button type="button" class="btn-modal-primary" style="flex:none;width:auto;padding:0 28px;background:#c62828" onclick="confirmDeleteProject()">Удалить</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Модал редактирования учётных данных -->
+    <div id="db-cred-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeCredModal()">
+      <div class="modal" style="max-width:500px;width:90%">
+        <div class="modal-header">
+          <h2 class="modal-title">Учётные данные</h2>
+          <button type="button" class="modal-close" onclick="closeCredModal()">&#x2715;</button>
+        </div>
+        <div class="modal-divider"></div>
+        <div class="modal-body">
+          <input type="hidden" id="db-cred-id"><!-- stores db_setting_id -->
+          <div class="form-group" style="margin-bottom:14px">
+            <label class="form-label">Логин</label>
+            <input id="db-cred-login" type="text" class="form-input" placeholder="Логин">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Пароль <span style="font-weight:normal;color:#888">(оставьте пустым, чтобы не менять)</span></label>
+            <input id="db-cred-password" type="password" class="form-input" placeholder="Новый пароль">
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-modal-cancel" onclick="closeCredModal()">Отмена</button>
+          <button type="button" class="btn-modal-primary" style="flex:none;width:auto;padding:0 28px" onclick="saveCredential()">Сохранить</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      var _dbSettings = [];
+      var _deleteId = null;
+      var _dbCredentials = [];
+
+      // ── Список ───────────────────────────────────────────────────────────
+
+      async function loadDbSettings(keepId) {
+        try {
+          var resp = await fetch('{{ url_for("get_db_settings") }}', { headers: { Accept: 'application/json' } });
+          var data = await resp.json();
+          if (!resp.ok || data.errors) { showErrors(data.errors || ['Ошибка загрузки']); return; }
+          _dbSettings = data.settings || [];
+          renderSelect(keepId);
+        } catch (e) { showErrors(['Ошибка соединения: ' + e.message]); }
+      }
+
+      function renderSelect(keepId) {
+        var sel = document.getElementById('db-settings-select');
+        sel.innerHTML = '<option value="">— выберите подключение —</option>';
+        _dbSettings.forEach(function (s) {
+          var opt = document.createElement('option');
+          opt.value = s.id;
+          opt.textContent = s.db_label + '   postgresql://' + s.host + ':' + s.port + '/' + s.name;
+          sel.appendChild(opt);
+        });
+        sel.value = keepId || '';
+        onDbSettingSelect();
+      }
+
+      function onDbSettingSelect() {
+        var active = !!document.getElementById('db-settings-select').value;
+        document.getElementById('btn-edit-db').disabled = !active;
+      }
+
+      function _selectedSetting() {
+        var id = parseInt(document.getElementById('db-settings-select').value);
+        return _dbSettings.find(function (s) { return s.id === id; }) || null;
+      }
+
+      function editSelected() {
+        var s = _selectedSetting();
+        if (s) openDbSettingModal(s);
+      }
+
+      function deleteSelected() {
+        var s = _selectedSetting();
+        if (s) openDeleteModal(s);
+      }
+
+      // ── Создание / редактирование ────────────────────────────────────────
+
+      function openDbSettingModal(setting) {
+        document.getElementById('db-setting-id').value = setting ? setting.id : '';
+        document.getElementById('db-setting-modal-title').textContent = setting ? 'Редактировать настройку' : 'Новая настройка БД';
+        document.getElementById('db-setting-label').value = setting ? (setting.db_label || '') : '';
+        document.getElementById('db-setting-host').value = setting ? (setting.host || '') : '';
+        document.getElementById('db-setting-port').value = setting ? (setting.port || 5432) : 5432;
+        document.getElementById('db-setting-name').value = setting ? (setting.name || '') : '';
+        document.getElementById('btn-modal-delete-db').style.display = setting ? '' : 'none';
+        document.getElementById('db-setting-overlay').style.display = 'flex';
+      }
+
+      function deleteFromModal() {
+        var s = _selectedSetting();
+        if (s) { closeDbSettingModal(); openDeleteModal(s); }
+      }
+
+      function closeDbSettingModal() {
+        document.getElementById('db-setting-overlay').style.display = 'none';
+      }
+
+      async function saveDbSetting() {
+        var id = document.getElementById('db-setting-id').value;
+        var payload = {
+          id: id ? parseInt(id) : null,
+          db_label: document.getElementById('db-setting-label').value,
+          host: document.getElementById('db-setting-host').value,
+          port: document.getElementById('db-setting-port').value,
+          name: document.getElementById('db-setting-name').value,
+        };
+        try {
+          var resp = await fetch('{{ url_for("post_db_setting") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          var data = await resp.json();
+          if (!resp.ok || data.errors) { showErrors(data.errors || ['Ошибка сохранения']); return; }
+          var savedId = data.setting ? data.setting.id : null;
+          closeDbSettingModal();
+          await loadDbSettings(savedId);
+        } catch (e) { showErrors(['Ошибка соединения: ' + e.message]); }
+      }
+
+      // ── Удаление ─────────────────────────────────────────────────────────
+
+      function openDeleteModal(setting) {
+        _deleteId = setting.id;
+        document.getElementById('db-setting-delete-label').textContent = '«' + setting.db_label + '»';
+        document.getElementById('db-setting-delete-overlay').style.display = 'flex';
+      }
+
+      function closeDeleteModal() {
+        document.getElementById('db-setting-delete-overlay').style.display = 'none';
+        _deleteId = null;
+      }
+
+      async function confirmDeleteDbSetting() {
+        if (!_deleteId) return;
+        var id = _deleteId;
+        closeDeleteModal();
+        try {
+          var resp = await fetch('{{ url_for("delete_db_setting", setting_id=0) }}'.replace('/0', '/' + id), {
+            method: 'DELETE',
+            headers: { Accept: 'application/json' },
+          });
+          var data = await resp.json();
+          if (!resp.ok || data.errors) { showErrors(data.errors || ['Ошибка удаления']); return; }
+          await loadDbSettings();
+        } catch (e) { showErrors(['Ошибка соединения: ' + e.message]); }
+      }
+
+      // ── Проекты ──────────────────────────────────────────────────────────
+
+      var _projects = [];
+      var _deleteProjectId = null;
+
+      async function loadProjects(keepId) {
+        try {
+          var resp = await fetch('{{ url_for("get_projects") }}', { headers: { Accept: 'application/json' } });
+          var data = await resp.json();
+          if (!resp.ok || data.errors) { showErrors(data.errors || ['Ошибка загрузки']); return; }
+          _projects = data.projects || [];
+          renderProjectSelect(keepId);
+        } catch (e) { showErrors(['Ошибка соединения: ' + e.message]); }
+      }
+
+      function renderProjectSelect(keepId) {
+        var sel = document.getElementById('project-select');
+        sel.innerHTML = '<option value="">— выберите проект —</option>';
+        _projects.forEach(function (p) {
+          var opt = document.createElement('option');
+          opt.value = p.id;
+          opt.textContent = p.code + ' — ' + p.description;
+          sel.appendChild(opt);
+        });
+        sel.value = keepId || '';
+        onProjectSelect();
+        var currentActual = document.getElementById('actual-project-select').value;
+        renderActualProjectSelect(currentActual ? parseInt(currentActual) : null);
+      }
+
+      function onProjectSelect() {
+        var active = !!document.getElementById('project-select').value;
+        document.getElementById('btn-edit-project').disabled = !active;
+      }
+
+      function _selectedProject() {
+        var id = parseInt(document.getElementById('project-select').value);
+        return _projects.find(function (p) { return p.id === id; }) || null;
+      }
+
+      function editSelectedProject() {
+        var p = _selectedProject();
+        if (p) openProjectModal(p);
+      }
+
+      function _fillProjectDbSettingSelect(selectedId) {
+        var sel = document.getElementById('project-db-setting');
+        sel.innerHTML = '<option value="">— выберите подключение —</option>';
+        _dbSettings.forEach(function (s) {
+          var opt = document.createElement('option');
+          opt.value = s.id;
+          opt.textContent = s.db_label + '   postgresql://' + s.host + ':' + s.port + '/' + s.name;
+          sel.appendChild(opt);
+        });
+        sel.value = selectedId || '';
+      }
+
+      function openProjectModal(project) {
+        document.getElementById('project-id').value = project ? project.id : '';
+        document.getElementById('project-modal-title').textContent = project ? 'Редактировать проект' : 'Новый проект';
+        document.getElementById('project-code').value = project ? (project.code || '') : '';
+        document.getElementById('project-description').value = project ? (project.description || '') : '';
+        document.getElementById('project-schema').value = project ? (project.schema || '') : '';
+        _fillProjectDbSettingSelect(project ? project.db_setting_id : null);
+        document.getElementById('btn-modal-delete-project').style.display = project ? '' : 'none';
+        document.getElementById('project-overlay').style.display = 'flex';
+      }
+
+      function closeProjectModal() {
+        document.getElementById('project-overlay').style.display = 'none';
+      }
+
+      function deleteProjectFromModal() {
+        var p = _selectedProject();
+        if (p) { closeProjectModal(); openProjectDeleteModal(p); }
+      }
+
+      async function saveProject() {
+        var id = document.getElementById('project-id').value;
+        var payload = {
+          id: id ? parseInt(id) : null,
+          code: document.getElementById('project-code').value,
+          description: document.getElementById('project-description').value,
+          db_setting_id: document.getElementById('project-db-setting').value || null,
+          schema: document.getElementById('project-schema').value,
+        };
+        try {
+          var resp = await fetch('{{ url_for("post_project") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          var data = await resp.json();
+          if (!resp.ok || data.errors) { showErrors(data.errors || ['Ошибка сохранения']); return; }
+          var savedId = data.project ? data.project.id : null;
+          closeProjectModal();
+          await loadProjects(savedId);
+        } catch (e) { showErrors(['Ошибка соединения: ' + e.message]); }
+      }
+
+      function openProjectDeleteModal(project) {
+        _deleteProjectId = project.id;
+        document.getElementById('project-delete-label').textContent = '«' + project.code + '»';
+        document.getElementById('project-delete-overlay').style.display = 'flex';
+      }
+
+      function closeProjectDeleteModal() {
+        document.getElementById('project-delete-overlay').style.display = 'none';
+        _deleteProjectId = null;
+      }
+
+      async function confirmDeleteProject() {
+        if (!_deleteProjectId) return;
+        var id = _deleteProjectId;
+        closeProjectDeleteModal();
+        try {
+          var resp = await fetch('{{ url_for("delete_project", project_id=0) }}'.replace('/0', '/' + id), {
+            method: 'DELETE',
+            headers: { Accept: 'application/json' },
+          });
+          var data = await resp.json();
+          if (!resp.ok || data.errors) { showErrors(data.errors || ['Ошибка удаления']); return; }
+          await loadProjects();
+        } catch (e) { showErrors(['Ошибка соединения: ' + e.message]); }
+      }
+
+      // ── Учётные данные ───────────────────────────────────────────────────
+
+      async function loadDbCredentials(keepDbSettingId) {
+        try {
+          var resp = await fetch('{{ url_for("get_db_credentials") }}', { headers: { Accept: 'application/json' } });
+          var data = await resp.json();
+          if (!resp.ok || data.errors) { showErrors(data.errors || ['Ошибка загрузки']); return; }
+          _dbCredentials = data.credentials || [];
+          renderCredSelect(keepDbSettingId);
+        } catch (e) { showErrors(['Ошибка соединения: ' + e.message]); }
+      }
+
+      function renderCredSelect(keepDbSettingId) {
+        var sel = document.getElementById('db-cred-select');
+        sel.innerHTML = '<option value="">— выберите подключение —</option>';
+        _dbCredentials.forEach(function (c) {
+          var opt = document.createElement('option');
+          opt.value = c.db_setting_id;
+          opt.textContent = c.db_label + '   postgresql://' + c.host + ':' + c.port + '/' + c.name;
+          sel.appendChild(opt);
+        });
+        sel.value = keepDbSettingId || '';
+        onCredSelect();
+      }
+
+      function onCredSelect() {
+        var active = !!document.getElementById('db-cred-select').value;
+        document.getElementById('btn-edit-cred').disabled = !active;
+      }
+
+      function _selectedCredEntry() {
+        var dbSettingId = parseInt(document.getElementById('db-cred-select').value);
+        return _dbCredentials.find(function (c) { return c.db_setting_id === dbSettingId; }) || null;
+      }
+
+      function editSelectedCred() {
+        var c = _selectedCredEntry();
+        if (c) openCredModal(c);
+      }
+
+      function openCredModal(cred) {
+        document.getElementById('db-cred-id').value = cred.db_setting_id;
+        document.getElementById('db-cred-login').value = cred.login || '';
+        document.getElementById('db-cred-password').value = '';
+        document.getElementById('db-cred-overlay').style.display = 'flex';
+      }
+
+      function closeCredModal() {
+        document.getElementById('db-cred-overlay').style.display = 'none';
+      }
+
+      async function saveCredential() {
+        var dbSettingId = document.getElementById('db-cred-id').value;
+        var payload = {
+          db_setting_id: dbSettingId ? parseInt(dbSettingId) : null,
+          login: document.getElementById('db-cred-login').value,
+          password: document.getElementById('db-cred-password').value,
+        };
+        try {
+          var resp = await fetch('{{ url_for("post_db_credential") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          var data = await resp.json();
+          if (!resp.ok || data.errors) { showErrors(data.errors || ['Ошибка сохранения']); return; }
+          closeCredModal();
+          await loadDbCredentials(parseInt(dbSettingId));
+        } catch (e) { showErrors(['Ошибка соединения: ' + e.message]); }
+      }
+
+      // ── Актуальный проект ────────────────────────────────────────────────
+
+      function renderActualProjectSelect(actualId) {
+        var sel = document.getElementById('actual-project-select');
+        sel.innerHTML = '<option value="">— не выбран —</option>';
+        _projects.forEach(function (p) {
+          var opt = document.createElement('option');
+          opt.value = p.id;
+          opt.textContent = p.code + ' — ' + p.description;
+          sel.appendChild(opt);
+        });
+        sel.value = actualId || '';
+      }
+
+      async function loadActualProject() {
+        try {
+          var resp = await fetch('{{ url_for("get_actual_project") }}', { headers: { Accept: 'application/json' } });
+          var data = await resp.json();
+          if (!resp.ok || data.errors) { showErrors(data.errors || ['Ошибка загрузки']); return; }
+          renderActualProjectSelect(data.actual_project_id);
+        } catch (e) { showErrors(['Ошибка соединения: ' + e.message]); }
+      }
+
+      async function saveActualProject() {
+        var val = document.getElementById('actual-project-select').value;
+        var payload = { actual_project_id: val ? parseInt(val) : null };
+        try {
+          var resp = await fetch('{{ url_for("post_actual_project") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          var data = await resp.json();
+          if (!resp.ok || data.errors) { showErrors(data.errors || ['Ошибка сохранения']); return; }
+          location.reload();
+        } catch (e) { showErrors(['Ошибка соединения: ' + e.message]); }
+      }
+
+      function _updateProjectBadge(projectId) {
+        var badge = document.querySelector('.project-badge');
+        if (!badge) return;
+        if (!projectId) {
+          badge.textContent = 'Проект: не задан';
+          badge.removeAttribute('data-tooltip');
+          return;
+        }
+        var p = _projects.find(function (x) { return x.id === projectId; });
+        if (!p) return;
+        var s = _dbSettings.find(function (x) { return x.id === p.db_setting_id; });
+        badge.textContent = 'Проект: ' + p.code;
+        var dbLine = s
+          ? '  | postgresql://' + s.host + ':' + s.port + '/' + s.name + '  | схема ' + p.schema
+          : '  | схема ' + p.schema;
+        badge.setAttribute('data-tooltip', (p.description ? p.description + ' ' : '') + dbLine);
+      }
+
+      loadDbSettings();
+      loadDbCredentials();
+      loadProjects().then(loadActualProject);
+    </script>
   </body>
 </html>
