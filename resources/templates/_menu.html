@@ -1,16 +1,28 @@
+{% set _no_project = not current_user or current_user.project_id is none %}
 <aside class="sidebar">
   <div class="sidebar-project-name">{{ project_name }}</div>
   <nav class="sidebar-nav">
     <a href="{{ url_for('get_parametrizer') }}" class="nav-link{% if active_page == 'parametrizer' %} nav-link--active{% endif %}">Параметризатор</a>
-    <a href="{{ url_for('get_configurator') }}" class="nav-link{% if active_page == 'configurator' %} nav-link--active{% endif %}">Конфигуратор</a>
-    <a href="{{ url_for('get_generator') }}" class="nav-link{% if active_page == 'generator' %} nav-link--active{% endif %}">Генератор</a>
-    <a href="{{ url_for('get_router') }}" class="nav-link{% if active_page == 'router' %} nav-link--active{% endif %}">Маршрутизатор</a>
-    <a href="{{ url_for('get_loader') }}" class="nav-link{% if active_page == 'loader' %} nav-link--active{% endif %}">Загружатор</a>
-    <a href="{{ url_for('get_analyzer') }}" class="nav-link{% if active_page == 'analyzer' %} nav-link--active{% endif %}">Анализатор</a>
+
+    <a {% if not _no_project %}href="{{ url_for('get_configurator') }}"{% endif %}
+       class="nav-link{% if active_page == 'configurator' %} nav-link--active{% elif _no_project %} nav-link--disabled{% endif %}">Конфигуратор</a>
+
+    <a {% if not _no_project %}href="{{ url_for('get_generator') }}"{% endif %}
+       class="nav-link{% if active_page == 'generator' %} nav-link--active{% elif _no_project %} nav-link--disabled{% endif %}">Генератор</a>
+
+    <a {% if not _no_project %}href="{{ url_for('get_router') }}"{% endif %}
+       class="nav-link{% if active_page == 'router' %} nav-link--active{% elif _no_project %} nav-link--disabled{% endif %}">Маршрутизатор</a>
+
+    <a {% if not _no_project %}href="{{ url_for('get_loader') }}"{% endif %}
+       class="nav-link{% if active_page == 'loader' %} nav-link--active{% elif _no_project %} nav-link--disabled{% endif %}">Загружатор</a>
+
+    <a {% if not _no_project %}href="{{ url_for('get_analyzer') }}"{% endif %}
+       class="nav-link{% if active_page == 'analyzer' %} nav-link--active{% elif _no_project %} nav-link--disabled{% endif %}">Анализатор</a>
   </nav>
   <div class="sidebar-user">
     <div class="user-info">
       {{ (current_user.first_name or '') ~ ' ' ~ (current_user.last_name or '') | trim }}
     </div>
+    <a href="{{ url_for('logout') }}" style="font-size:12px;color:#888;text-decoration:none;display:block;margin-top:4px">Выйти</a>
   </div>
 </aside>

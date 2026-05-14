@@ -5,6 +5,8 @@ docker compose -f libretranslate.yml -p data_pipeline_pro up -d
 
 docker-compose -f minio.yml -p data_pipeline_pro up -d
 
+docker compose -f keycloak.yml -p data_pipeline_pro up -d
+
 ------------------------------------------
 скачать модели для LibreTranslate
 
@@ -60,3 +62,31 @@ json
     }
   ],
   "Version": "2012-10-17"
+
+-------------------------------------------
+keycloak
+
+docker compose -f docker/keycloak.yml up -d
+
+http://localhost:50004
+
+KEYCLOAK_ADMIN: admin
+KEYCLOAK_ADMIN_PASSWORD: admin
+
+Открыть http://localhost:50004 → admin/admin
+Создать клиент data-pipeline-pro (Client authentication: ON, redirect URI: http://localhost:8080/callback)
+Скопировать Client Secret → в resources/config.local.toml:
+
+Приложение запускается на http://127.0.0.1:8080 (см. app.py:272).
+
+В Keycloak клиенте:
+
+Поле	Значение
+Root URL	http://127.0.0.1:8080
+Valid redirect URIs	http://127.0.0.1:8080/callback
+Web origins	http://127.0.0.1:8080
+
+В admin console → Clients → data-pipeline-pro → Client scopes:
+
+profile и email должны быть в колонке Assigned default client scopes (не optional)
+Тогда userinfo будет содержать given_name, family_name, email

@@ -27,3 +27,9 @@ libretranslate_url = "http://127.0.0.1:50001"
 # API key required if LibreTranslate is started with --api-keys flag.
 # Leave empty if the service allows unauthenticated access.
 api_key = ""
+
+[keycloak]
+server_url    = "http://localhost:50004"
+realm         = "master"
+client_id     = "data-pipeline-pro"
+client_secret = ""

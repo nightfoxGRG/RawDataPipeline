@@ -1,0 +1,25 @@
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: keycloak
+    restart: unless-stopped
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://host.docker.internal:5432/data_pipeline_pro
+      KC_DB_SCHEMA: keycloak
+      KC_DB_USERNAME: user
+      KC_DB_PASSWORD: password
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HOSTNAME: localhost
+      KC_HTTP_ENABLED: "true"
+    command: start-dev
+    ports:
+      - "50004:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - keycloak_data:/Volumes/External_SSD/work/keycloak_data
+
+volumes:
+  keycloak_data:
