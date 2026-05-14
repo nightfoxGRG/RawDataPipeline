@@ -12,8 +12,7 @@ from flask import Flask, Response, g, redirect, render_template, request, send_f
 from common.error import AppError
 from common.error_handler import register_error_handlers
 from common.project_paths import ProjectPaths
-from common.context_service import ContextService
-from common.keycloak_auth import init_oauth, oauth
+from config.keycloak_auth import init_oauth, oauth
 from config.db_migration_yoyo.db_migrate_config_at_start import run_migrations_on_start
 from domains.generator.sql_generator_service import SqlGeneratorService
 from domains.configurator.table_config_generator_service import TableConfigGeneratorService
@@ -73,11 +72,10 @@ def create_app() -> Flask:
         g.current_user = None
         if request.endpoint in _PUBLIC_ENDPOINTS:
             return
-        token = session.get('access_token')
-        if not token:
+        subject_id = session.get('subject_id')
+        if not subject_id:
             return redirect(url_for('login'))
-        context_service = ContextService()
-        g.current_user = context_service.load_user_context(token)
+        g.current_user = _users_service.get_user_info(subject_id)
         if g.current_user is None:
             session.clear()
             return redirect(url_for('login'))
@@ -105,7 +103,12 @@ def create_app() -> Flask:
 
     @app.get('/callback')
     def callback():
-        token = oauth.keycloak.authorize_access_token()
+        from authlib.integrations.base_client.errors import MismatchingStateError
+        try:
+            token = oauth.keycloak.authorize_access_token()
+        except MismatchingStateError:
+            session.clear()
+            return redirect(url_for('login'))
         userinfo = token.get('userinfo') or {}
         subject_id = userinfo.get('email')
         if not subject_id:
@@ -117,18 +120,24 @@ def create_app() -> Flask:
             email=userinfo.get('email') or '',
         )
         session['access_token'] = token['access_token']
+        session['id_token'] = token.get('id_token', '')
+        session['subject_id'] = subject_id
         return redirect(url_for('index'))
 
     @app.get('/logout')
     def logout():
-        session.clear()
         kc = get_config().get('keycloak', {})
-        logout_url = (
-            f"{kc.get('server_url', '')}/realms/{kc.get('realm', 'master')}"
-            f"/protocol/openid-connect/logout"
-            f"?post_logout_redirect_uri={url_for('login', _external=True)}"
-            f"&client_id={kc.get('client_id', '')}"
-        )
+        id_token = session.get('id_token', '')
+        session.clear()
+        if id_token:
+            logout_url = (
+                f"{kc.get('server_url', '')}/realms/{kc.get('realm', 'master')}"
+                f"/protocol/openid-connect/logout"
+                f"?id_token_hint={id_token}"
+                f"&post_logout_redirect_uri={url_for('login', _external=True)}"
+            )
+        else:
+            logout_url = url_for('login')
         return redirect(logout_url)
 
     # ── Параметризатор ────────────────────────────────────────────────────
@@ -265,7 +274,7 @@ def create_app() -> Flask:
 
     @app.post('/analyzer/run')
     def post_analyzer_run():
-        from flask import jsonify, send_file
+        from flask import send_file
         import io
         body = request.get_json(force=True, silent=True) or {}
         tables = body.get('tables') or []
