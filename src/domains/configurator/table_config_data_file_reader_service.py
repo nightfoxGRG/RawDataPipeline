@@ -93,7 +93,14 @@ class TableConfigDataFileReaderService(metaclass=SingletonMeta):
         else:
             text = content.decode('latin-1')
 
-        reader = csv.reader(StringIO(text))
+        sample = text[:4096]
+        try:
+            dialect = csv.Sniffer().sniff(sample, delimiters=',;\t|')
+        except csv.Error:
+            dialect = csv.excel
+            dialect.delimiter = ';' if ';' in sample else ','
+
+        reader = csv.reader(StringIO(text), dialect)
         all_rows = list(reader)
         if not all_rows:
             from common.error import AppError
