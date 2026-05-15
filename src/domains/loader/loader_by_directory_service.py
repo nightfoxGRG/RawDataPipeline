@@ -99,8 +99,9 @@ class LoaderByDirectoryService(metaclass=SingletonMeta):
             return self._loader_service.load(db_id, schema, config_id, source_name, stream)
 
         text = self._decode_csv(content)
-        headers = self._read_csv_headers(text)
-        stream = DataStream(headers=headers, rows_factory=lambda: self._csv_rows(text))
+        dialect = self._sniff_dialect(text)
+        headers = self._read_csv_headers(text, dialect)
+        stream = DataStream(headers=headers, rows_factory=lambda: self._csv_rows(text, dialect))
         return self._loader_service.load(db_id, schema, config_id, source_name, stream)
 
     @staticmethod
@@ -128,16 +129,25 @@ class LoaderByDirectoryService(metaclass=SingletonMeta):
             wb.close()
 
     @staticmethod
-    def _read_csv_headers(text: str) -> list[str]:
-        reader = csv.reader(StringIO(text))
+    def _sniff_dialect(text: str):
+        try:
+            return csv.Sniffer().sniff(text[:4096], delimiters=',;\t|')
+        except csv.Error:
+            dialect = csv.excel
+            dialect.delimiter = ';' if ';' in text[:4096] else ','
+            return dialect
+
+    @staticmethod
+    def _read_csv_headers(text: str, dialect) -> list[str]:
+        reader = csv.reader(StringIO(text), dialect)
         first_row = next(reader, None)
         if first_row is None:
             raise AppError('Файл пустой.')
         return list(first_row)
 
     @staticmethod
-    def _csv_rows(text: str):
-        reader = csv.reader(StringIO(text))
+    def _csv_rows(text: str, dialect):
+        reader = csv.reader(StringIO(text), dialect)
         next(reader, None)
         for row in reader:
             yield row

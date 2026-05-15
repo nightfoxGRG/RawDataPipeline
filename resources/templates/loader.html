@@ -121,8 +121,10 @@
         var lines = (reason || 'неизвестная причина').split('\n');
         lines.forEach(function (line) {
           if (!line.trim()) return;
+          var isSub = /^\s*•\s*/.test(line);
           var li = document.createElement('li');
-          li.textContent = line;
+          li.textContent = line.replace(/^\s*•\s*/, '');
+          if (isSub) li.style.paddingLeft = '12px';
           ul.appendChild(li);
         });
         document.getElementById('load-error-detail-overlay').style.display = 'flex';

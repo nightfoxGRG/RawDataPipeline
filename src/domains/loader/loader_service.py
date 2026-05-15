@@ -6,6 +6,7 @@
 Если есть ошибки — возвращает весь список без вставки. Если ошибок нет —
 выполняет INSERT блоками chunk_size.
 """
+import re
 import uuid
 from datetime import date, datetime, timezone
 from typing import Any, Callable, Sequence
@@ -35,6 +36,17 @@ _DATE_TYPES = {'date'}
 _TS_TYPES = {'timestamp', 'timestamp without time zone', 'timestamp with time zone', 'timestamptz'}
 _BOOL_TRUE = {'true', 't', '1', 'yes', 'y', 'да'}
 _BOOL_FALSE = {'false', 'f', '0', 'no', 'n', 'нет'}
+
+# Formats: '2025-12-08 15:57:00.000 +0300', '2025-12-08T15:57:00+03:00', etc.
+_RE_TZ_SPACE = re.compile(r'(\d)\s+([+-]\d{2}:?\d{2})$')
+_RE_TZ_NO_COLON = re.compile(r'([+-])(\d{2})(\d{2})$')
+
+
+def _normalize_dt(s: str) -> str:
+    s = _RE_TZ_SPACE.sub(r'\1\2', s)       # убираем пробел перед tz: '00.000 +0300' → '00.000+0300'
+    s = s.replace(' ', 'T', 1)              # первый пробел = разделитель даты и времени
+    s = _RE_TZ_NO_COLON.sub(r'\1\2:\3', s) # +0300 → +03:00
+    return s
 
 
 class LoaderService(metaclass=SingletonMeta):
@@ -283,7 +295,7 @@ class LoaderService(metaclass=SingletonMeta):
             if isinstance(value, (date, datetime)):
                 return None
             try:
-                datetime.fromisoformat(str(value).strip().replace(' ', 'T'))
+                datetime.fromisoformat(_normalize_dt(str(value).strip()))
                 return None
             except (ValueError, TypeError):
                 return f'ожидается дата, получено: {value!r}'
@@ -293,7 +305,7 @@ class LoaderService(metaclass=SingletonMeta):
             if isinstance(value, date):
                 return None
             try:
-                datetime.fromisoformat(str(value).strip().replace(' ', 'T'))
+                datetime.fromisoformat(_normalize_dt(str(value).strip()))
                 return None
             except (ValueError, TypeError):
                 return f'ожидается timestamp, получено: {value!r}'
@@ -314,7 +326,10 @@ class LoaderService(metaclass=SingletonMeta):
         total = 0
         batch: list[dict] = []
         for row in rows:
-            batch.append({f'p{i}': resolver(row) for i, resolver in enumerate(resolvers)})
+            batch.append({
+                f'p{i}': (None if self._is_null_value(v := resolver(row)) else v)
+                for i, resolver in enumerate(resolvers)
+            })
             if len(batch) >= chunk_size:
                 self._working_db_repository.execute_insert_batch(db_id, schema, insert_sql, batch)
                 total += len(batch)
