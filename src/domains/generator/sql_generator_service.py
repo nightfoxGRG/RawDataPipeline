@@ -12,7 +12,7 @@ from domains.generator.postgres_types import (
 )
 from domains.configurator.table_config_parser_service import TableConfigParserService
 from domains.configurator.table_config_validator import TableConfigValidator
-from domains.minio.minio_service import MinioService
+from common.storage.table_config_storage import get_table_config_storage
 from domains.project.project_repository import ProjectRepository
 from domains.working_db.information_schema_repository import InformationSchemaRepository
 from domains.working_db.working_db_repository import WorkingDbRepository
@@ -34,7 +34,7 @@ class SqlGeneratorService(metaclass=SingletonMeta):
     def __init__(self) -> None:
         self._parser = TableConfigParserService()
         self._validator = TableConfigValidator()
-        self._minio = MinioService()
+        self._storage = get_table_config_storage()
         self._project_repository = ProjectRepository()
         self._information_schema_repository = InformationSchemaRepository()
         self._working_db_repository = WorkingDbRepository()
@@ -57,7 +57,7 @@ class SqlGeneratorService(metaclass=SingletonMeta):
 
         user = ContextService.get_user_info()
         table_config_minio_id = self._get_table_config_minio_id(user)
-        content = self._minio.download_bytes(TABLE_CONFIG_BUCKET, table_config_minio_id)
+        content = self._storage.download_bytes(TABLE_CONFIG_BUCKET, table_config_minio_id)
 
         tables = self._parser.parse_tables_config(content, 'config.xlsm')
         self._validator.validate_tables(tables)
@@ -80,7 +80,7 @@ class SqlGeneratorService(metaclass=SingletonMeta):
 
         user = ContextService.get_user_info()
         table_config_minio_id = self._get_table_config_minio_id(user)
-        content = self._minio.download_bytes(TABLE_CONFIG_BUCKET, table_config_minio_id)
+        content = self._storage.download_bytes(TABLE_CONFIG_BUCKET, table_config_minio_id)
 
         tables = self._parser.parse_tables_config(content, 'config.xlsm')
         self._validator.validate_tables(tables)

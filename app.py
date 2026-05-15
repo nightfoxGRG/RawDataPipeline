@@ -8,11 +8,12 @@ _src = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src')
 if _src not in sys.path:
     sys.path.insert(0, _src)
 
-from flask import Flask, Response, g, redirect, render_template, request, send_from_directory, session, url_for
+from flask import Flask, Response, g, jsonify, redirect, render_template, request, send_from_directory, session, url_for
 from common.error import AppError
 from common.error_handler import register_error_handlers
 from common.project_paths import ProjectPaths
-from config.keycloak_auth import init_oauth, oauth
+from config.app_mode import AppMode, get_app_mode
+from config.config_loader import ConfigMissingError, get_config, local_config_path, reset_config
 from config.db_migration_yoyo.db_migrate_config_at_start import run_migrations_on_start
 from domains.generator.sql_generator_service import SqlGeneratorService
 from domains.configurator.table_config_generator_service import TableConfigGeneratorService
@@ -26,9 +27,10 @@ from domains.db_setting_credential.db_setting_credential_service import DbSettin
 from domains.project.project_service import ProjectService
 from domains.users.user_setting_service import UserSettingService
 from domains.users.users_service import UsersService
-from config.config_loader import get_config
 
-_SYSTEM_SCHEMA = 'system'
+_LOCAL_USER_SUBJECT_ID = 'LOCAL_USER'
+
+_APP_MODE = get_app_mode()
 
 _sql_generator = SqlGeneratorService()
 _table_config_generator = TableConfigGeneratorService()
@@ -43,58 +45,22 @@ _project_service = ProjectService()
 _user_setting_service = UserSettingService()
 _users_service = UsersService()
 
-_PUBLIC_ENDPOINTS = {'login', 'callback', 'logout', 'static'}
+_PUBLIC_ENDPOINTS_SERVER = {'login', 'callback', 'logout', 'static'}
+_PUBLIC_ENDPOINTS_LOCAL = {'setup', 'setup_test', 'setup_save', 'static'}
 
 
-def create_app() -> Flask:
-    app = Flask(
-        __name__,
-        template_folder=str(ProjectPaths.TEMPLATES),
-        static_folder=str(ProjectPaths.STATIC)
-    )
+def _config_is_complete() -> bool:
+    """В local-режиме config валиден, если заполнены host/port/name/user БД."""
+    try:
+        cfg = get_config()
+    except ConfigMissingError:
+        return False
+    db = cfg.get('database', {})
+    return bool(db.get('host') and db.get('port') and db.get('name') and db.get('user'))
 
-    cfg = get_config()
 
-    app.secret_key = cfg.get('app', {}).get('secret_key', 'dev-secret-change-me')
-
-    _run_mode = 'local' if getattr(sys, 'frozen', False) else 'server'
-    _project_name = cfg.get('app', {}).get('project_name', 'DataPipelinePro')
-
-    import os
-    if not os.environ.get('FLASK_TESTING'):
-        run_migrations_on_start()
-
-    init_oauth(app)
-    register_error_handlers(app)
-
-    @app.before_request
-    def load_user_context():
-        g.current_user = None
-        if request.endpoint in _PUBLIC_ENDPOINTS:
-            return
-        subject_id = session.get('subject_id')
-        if not subject_id:
-            return redirect(url_for('login'))
-        g.current_user = _users_service.get_user_info(subject_id)
-        if g.current_user is None:
-            session.clear()
-            return redirect(url_for('login'))
-
-    @app.context_processor
-    def inject_globals():
-        return {
-            'run_mode': _run_mode,
-            'project_name': _project_name,
-            'current_user': getattr(g, 'current_user', None),
-        }
-
-    @app.teardown_request
-    def teardown_request(error=None):
-        g.current_user = None
-        if DbContext().is_active():
-            DbContext().clear()
-
-    # ── Аутентификация ────────────────────────────────────────────────────
+def _register_server_auth_routes(app: Flask) -> None:
+    from config.keycloak_auth import oauth
 
     @app.get('/login')
     def login():
@@ -139,6 +105,249 @@ def create_app() -> Flask:
         else:
             logout_url = url_for('login')
         return redirect(logout_url)
+
+
+def _register_local_routes(app: Flask) -> None:
+    """Onboarding-маршруты для local-сборки."""
+
+    @app.get('/setup')
+    def setup():
+        defaults = _read_setup_defaults()
+        return render_template(
+            'setup.html',
+            config_path=str(local_config_path()),
+            defaults=defaults,
+        )
+
+    @app.post('/setup/test')
+    def setup_test():
+        data = request.get_json(force=True, silent=True) or {}
+        db = data.get('database') or {}
+        try:
+            _test_db_connection(db)
+            return jsonify(ok=True)
+        except Exception as exc:
+            return jsonify(errors=[f'Не удалось подключиться: {exc}']), 422
+
+    @app.post('/setup/save')
+    def setup_save():
+        data = request.get_json(force=True, silent=True) or {}
+        errors = _validate_setup_payload(data)
+        if errors:
+            return jsonify(errors=errors), 422
+        try:
+            _test_db_connection(data['database'])
+        except Exception as exc:
+            return jsonify(errors=[f'Не удалось подключиться: {exc}']), 422
+
+        _write_setup_config(data)
+
+        # Сбрасываем кеши, чтобы новый config применился, и накатываем миграции
+        from config.system_db_config import reset_db_urls
+        from config.db_orm_sqlalchemy.bd_engine_config import reset_engine
+        from config.db_orm_sqlalchemy.db_session_config import reset_session_factory
+        reset_config()
+        reset_db_urls()
+        reset_session_factory()
+        reset_engine()
+
+        try:
+            run_migrations_on_start()
+        except Exception as exc:
+            return jsonify(errors=[f'Ошибка миграций: {exc}']), 422
+
+        _ensure_local_db_setting()
+        return jsonify(ok=True, redirect=url_for('get_parametrizer'))
+
+
+def _open_in_editor(path: str) -> None:
+    """Открыть файл в системном редакторе (Windows/macOS/Linux)."""
+    import subprocess
+    if sys.platform == 'win32':
+        os.startfile(path)
+    elif sys.platform == 'darwin':
+        subprocess.Popen(['open', path])
+    else:
+        subprocess.Popen(['xdg-open', path])
+
+
+def _ensure_local_db_setting() -> None:
+    """В local-режиме гарантируем существование единственной db_setting из config."""
+    from domains.db_setting.db_setting_repository import DbSettingRepository
+    from domains.db_setting.db_setting_model import DbSettingModel
+    db = get_config().get('database', {})
+    repo = DbSettingRepository()
+    existing = repo.find_all()
+    if existing:
+        return
+    user = _users_service.get_user_info(_LOCAL_USER_SUBJECT_ID)
+    if user is None:
+        raise AppError('LOCAL_USER не найден после миграций.')
+    repo.save(DbSettingModel(
+        db_label='Локальная БД',
+        host=db.get('host'),
+        port=int(db.get('port') or 5432),
+        name=db.get('name'),
+        created_by=user.user_id,
+    ))
+
+
+def _read_setup_defaults() -> dict:
+    """Текущие значения из config (если есть) или из шаблона."""
+    try:
+        cfg = get_config()
+    except ConfigMissingError:
+        cfg = {}
+    db = cfg.get('database', {})
+    tr = cfg.get('translation', {})
+    return {
+        'host': db.get('host') or 'localhost',
+        'port': db.get('port') or 5432,
+        'name': db.get('name') or '',
+        'schema': db.get('schema') or 'data_pipline_schema',
+        'user': db.get('user') or '',
+        'password': db.get('password') or '',
+        'libretranslate_url': tr.get('libretranslate_url') or 'http://127.0.0.1:50001',
+        'libretranslate_api_key': tr.get('api_key') or '',
+    }
+
+
+def _validate_setup_payload(data: dict) -> list[str]:
+    errors: list[str] = []
+    db = data.get('database') or {}
+    if not (db.get('host') or '').strip():
+        errors.append('Не указан хост БД.')
+    if not db.get('port'):
+        errors.append('Не указан порт БД.')
+    if not (db.get('name') or '').strip():
+        errors.append('Не указано имя БД.')
+    if not (db.get('schema') or '').strip():
+        errors.append('Не указана схема БД.')
+    if not (db.get('user') or '').strip():
+        errors.append('Не указан пользователь БД.')
+    return errors
+
+
+def _test_db_connection(db: dict) -> None:
+    """Подключиться к БД и закрыть соединение. Бросит исключение при ошибке."""
+    import psycopg2
+    conn = psycopg2.connect(
+        host=db.get('host'),
+        port=int(db.get('port') or 5432),
+        dbname=db.get('name'),
+        user=db.get('user'),
+        password=db.get('password') or '',
+        connect_timeout=5,
+    )
+    conn.close()
+
+
+def _write_setup_config(data: dict) -> None:
+    """Записать database/translation в config.local.toml пользовательского каталога."""
+    from common.user_data_paths import ensure_user_data_dir
+    ensure_user_data_dir()
+    db = data['database']
+    tr = data.get('translation') or {}
+    lines = [
+        '# config.local.toml',
+        '# Сгенерирован onboarding-формой. Можно редактировать вручную.',
+        '',
+        '[database]',
+        f'host     = "{db["host"]}"',
+        f'port     = {int(db["port"])}',
+        f'name     = "{db["name"]}"',
+        f'schema   = "{db.get("schema") or "data_pipline_schema"}"',
+        f'user     = "{db["user"]}"',
+        f'password = "{db.get("password") or ""}"',
+        '',
+        '[translation]',
+        f'libretranslate_url = "{tr.get("libretranslate_url") or "http://127.0.0.1:50001"}"',
+        f'api_key = "{tr.get("api_key") or ""}"',
+        '',
+    ]
+    local_config_path().write_text('\n'.join(lines), encoding='utf-8')
+
+
+def create_app() -> Flask:
+    app = Flask(
+        __name__,
+        template_folder=str(ProjectPaths.TEMPLATES),
+        static_folder=str(ProjectPaths.STATIC)
+    )
+
+    _is_local = _APP_MODE == AppMode.LOCAL
+    _run_mode = 'local' if _is_local else 'server'
+
+    try:
+        cfg = get_config()
+        _project_name = cfg.get('app', {}).get('project_name', 'DataPipelinePro')
+        app.secret_key = cfg.get('app', {}).get('secret_key', 'dev-secret-change-me')
+    except ConfigMissingError:
+        # local-режим без config — стартуем с дефолтами и идём на /setup
+        _project_name = 'DataPipelinePro'
+        app.secret_key = 'dev-secret-change-me'
+
+    if not os.environ.get('FLASK_TESTING') and not _is_local:
+        # server: миграции при старте; local: миграции после /setup или если config валиден ниже
+        run_migrations_on_start()
+    elif not os.environ.get('FLASK_TESTING') and _is_local and _config_is_complete():
+        # local + есть валидный config — поднимаем миграции на старте
+        try:
+            run_migrations_on_start()
+            _ensure_local_db_setting()
+        except Exception as exc:
+            print(f'[migrate] Пропущено: {exc}')
+
+    register_error_handlers(app)
+
+    if not _is_local:
+        from config.keycloak_auth import init_oauth
+        init_oauth(app)
+
+    @app.before_request
+    def load_user_context():
+        g.current_user = None
+        public = _PUBLIC_ENDPOINTS_LOCAL if _is_local else _PUBLIC_ENDPOINTS_SERVER
+        if request.endpoint in public:
+            return
+
+        if _is_local:
+            if not _config_is_complete():
+                return redirect(url_for('setup'))
+            g.current_user = _users_service.get_user_info(_LOCAL_USER_SUBJECT_ID)
+            if g.current_user is None:
+                raise AppError('LOCAL_USER не создан в БД — проверьте миграции.')
+            return
+
+        subject_id = session.get('subject_id')
+        if not subject_id:
+            return redirect(url_for('login'))
+        g.current_user = _users_service.get_user_info(subject_id)
+        if g.current_user is None:
+            session.clear()
+            return redirect(url_for('login'))
+
+    @app.context_processor
+    def inject_globals():
+        return {
+            'run_mode': _run_mode,
+            'project_name': _project_name,
+            'is_local_mode': _is_local,
+            'current_user': getattr(g, 'current_user', None),
+        }
+
+    @app.teardown_request
+    def teardown_request(error=None):
+        g.current_user = None
+        if DbContext().is_active():
+            DbContext().clear()
+
+    # ── Аутентификация (server) / Onboarding (local) ─────────────────────
+
+    if _is_local:
+        _register_local_routes(app)
+    else:
+        _register_server_auth_routes(app)
 
     # ── Параметризатор ────────────────────────────────────────────────────
 
@@ -189,6 +398,17 @@ def create_app() -> Flask:
     @app.post('/parametrizer/actual-project')
     def post_actual_project():
         return _user_setting_service.set_actual_project(request.get_json(force=True, silent=True) or {})
+
+    @app.post('/parametrizer/open-config')
+    def open_config_in_editor():
+        if not _is_local:
+            raise AppError('Доступно только в локальном режиме.')
+        path = str(local_config_path())
+        try:
+            _open_in_editor(path)
+            return jsonify(ok=True, path=path)
+        except Exception as exc:
+            return jsonify(errors=[f'Не удалось открыть редактор: {exc}']), 422
 
     # ── Маршрутизатор ─────────────────────────────────────────────────────
 

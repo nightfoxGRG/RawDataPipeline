@@ -13,7 +13,7 @@ from openpyxl import load_workbook
 
 from common.error import AppError, ValidationError
 from common.project_paths import ProjectPaths
-from domains.minio.minio_service import MinioService
+from common.storage.table_config_storage import get_table_config_storage
 from domains.project.project_repository import ProjectRepository
 from domains.configurator.table_config_data_file_reader_service import (
     ALLOWED_DATA_EXTENSIONS,
@@ -39,7 +39,7 @@ class TableConfigGeneratorService(metaclass=SingletonMeta):
     def __init__(self) -> None:
         self._reader = TableConfigDataFileReaderService()
         self._validator = TableConfigDataFileValidator()
-        self._minio = MinioService()
+        self._storage = get_table_config_storage()
         self._config_validator = TableConfigValidator()
         self._config_parser = TableConfigParserService()
         self._project_repository = ProjectRepository()
@@ -129,7 +129,7 @@ class TableConfigGeneratorService(metaclass=SingletonMeta):
 
         if not user.project_id:
             xlsx_bytes = self.generate_excel_config_multi(tables)
-            self._minio.upload_bytes(
+            self._storage.upload_bytes(
                 TABLE_CONFIG_BUCKET, object_name, xlsx_bytes,
                 content_type='application/vnd.ms-excel.sheet.macroEnabled.12',
             )
@@ -142,19 +142,19 @@ class TableConfigGeneratorService(metaclass=SingletonMeta):
             return jsonify(choose_mode=True)
 
         if mode == 'append' and existing_name:
-            existing_bytes = self._minio.download_bytes(TABLE_CONFIG_BUCKET, existing_name)
+            existing_bytes = self._storage.download_bytes(TABLE_CONFIG_BUCKET, existing_name)
             xlsx_bytes = self._append_tables(existing_bytes, tables)
         else:
             xlsx_bytes = self.generate_excel_config_multi(tables)
 
         if existing_name:
             try:
-                self._minio.copy_to_bucket(TABLE_CONFIG_BUCKET, _TABLE_CONFIG_BUCKET_ARCH, existing_name)
-                self._minio.delete(TABLE_CONFIG_BUCKET, existing_name)
+                self._storage.copy_to_bucket(TABLE_CONFIG_BUCKET, _TABLE_CONFIG_BUCKET_ARCH, existing_name)
+                self._storage.delete(TABLE_CONFIG_BUCKET, existing_name)
             except AppError:
                 pass
 
-        self._minio.upload_bytes(
+        self._storage.upload_bytes(
             TABLE_CONFIG_BUCKET, object_name, xlsx_bytes,
             content_type='application/vnd.ms-excel.sheet.macroEnabled.12',
         )
@@ -178,7 +178,7 @@ class TableConfigGeneratorService(metaclass=SingletonMeta):
         object_name = self._get_table_config_minio_name()
 
         if not user.project_id:
-            self._minio.upload_bytes(
+            self._storage.upload_bytes(
                 TABLE_CONFIG_BUCKET, object_name, content,
                 content_type='application/vnd.ms-excel.sheet.macroEnabled.12',
             )
@@ -190,12 +190,12 @@ class TableConfigGeneratorService(metaclass=SingletonMeta):
 
         if existing_name:
             try:
-                self._minio.copy_to_bucket(TABLE_CONFIG_BUCKET, _TABLE_CONFIG_BUCKET_ARCH, existing_name)
-                self._minio.delete(TABLE_CONFIG_BUCKET, existing_name)
+                self._storage.copy_to_bucket(TABLE_CONFIG_BUCKET, _TABLE_CONFIG_BUCKET_ARCH, existing_name)
+                self._storage.delete(TABLE_CONFIG_BUCKET, existing_name)
             except AppError:
                 pass
 
-        self._minio.upload_bytes(
+        self._storage.upload_bytes(
             TABLE_CONFIG_BUCKET, object_name, content,
             content_type='application/vnd.ms-excel.sheet.macroEnabled.12',
         )
@@ -216,7 +216,7 @@ class TableConfigGeneratorService(metaclass=SingletonMeta):
             raise AppError('Конфигурационный файл в системе отсутствует.')
         object_name = project.table_config_minio_id
 
-        content = self._minio.download_bytes(TABLE_CONFIG_BUCKET, object_name)
+        content = self._storage.download_bytes(TABLE_CONFIG_BUCKET, object_name)
         return self._build_xlsm_response(content, f'{object_name}.xlsm')
 
     def validate_table_config_system(self) -> Response:
@@ -227,7 +227,7 @@ class TableConfigGeneratorService(metaclass=SingletonMeta):
         project = self._project_repository.find_by_id(user.project_id)
         if not project or not project.table_config_minio_id:
             raise AppError('Конфигурационный файл в системе отсутствует.')
-        content = self._minio.download_bytes(TABLE_CONFIG_BUCKET, project.table_config_minio_id)
+        content = self._storage.download_bytes(TABLE_CONFIG_BUCKET, project.table_config_minio_id)
 
         tables = self._config_parser.parse_tables_config(content, 'config.xlsm')
         self._config_validator.validate_tables(tables)

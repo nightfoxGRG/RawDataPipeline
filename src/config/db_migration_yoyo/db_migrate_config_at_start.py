@@ -1,5 +1,6 @@
 #db_migrate_config_at_start.py
 #""Автоматическое применение миграций БД при старте приложения."""
+import sys
 import traceback
 import psycopg2
 from yoyo import get_backend, read_migrations
@@ -8,6 +9,38 @@ from config.config_loader import get_config
 from config.system_db_config import get_db_url, get_db_system_schema
 
 _MIGRATION_TABLE = '_yoyo_migration'
+
+
+def _patch_yoyo_backends() -> None:
+    """В PyInstaller dist-info не бандлится, importlib_metadata не находит entry points.
+
+    Патчим get_backend_class напрямую — yoyo 9.x хранит PostgreSQL-бэкенд в
+    yoyo.backends.core.postgresql.PostgresqlBackend.
+    """
+    if not getattr(sys, 'frozen', False):
+        return
+    try:
+        from yoyo.backends.core.postgresql import PostgresqlBackend
+        from yoyo.backends import base as _base
+
+        _orig = _base.get_backend_class
+
+        def _patched(name: str):
+            _map = {
+                'postgresql': PostgresqlBackend,
+                'postgres':   PostgresqlBackend,
+                'psql':       PostgresqlBackend,
+            }
+            return _map.get(name) or _orig(name)
+
+        _base.get_backend_class = _patched
+        print('[migrate] yoyo backends patched for PyInstaller')
+    except Exception as exc:
+        print(f'[migrate] yoyo patch failed: {exc}')
+
+
+_patch_yoyo_backends()
+
 
 def run_migrations_on_start() -> None:
     try:
@@ -38,7 +71,8 @@ def run_migrations_on_start() -> None:
         ) from exc
 
 def build_dsn() -> str:
-    # search_path указывает yoyo создавать служебные таблицы в схеме system
+    # yoyo принимает только plain postgresql://, не postgresql+psycopg2://
+    # search_path указывает yoyo создавать служебные таблицы в нужной схеме
     return (
         f'{get_db_url()}'
         f'?options=-c%20search_path%3D{get_db_system_schema()}'

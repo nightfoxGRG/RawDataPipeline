@@ -16,6 +16,14 @@
       <h1>Параметризатор</h1>
       <hr class="section-divider">
 
+      {% if is_local_mode %}
+      <p class="hint">Локальная база данных. Параметры хранятся в config-файле.</p>
+
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <div id="local-db-info" style="font-size:13px;color:#3c4043;padding:6px 12px;background:#f1f3f4;border-radius:4px;font-family:monospace">—</div>
+        <a href="{{ url_for('setup') }}" class="btn" style="margin-top:0;text-decoration:none">Настройки подключения</a>
+      </div>
+      {% else %}
       <p class="hint">Настройки базы данных.</p>
 
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -36,6 +44,7 @@
         </select>
         <button type="button" id="btn-edit-cred" style="margin-top:0" disabled onclick="editSelectedCred()">Редактировать</button>
       </div>
+      {% endif %}
 
       <hr class="section-divider" style="margin-top:24px">
 
@@ -133,7 +142,7 @@
             <label class="form-label">Описание</label>
             <input id="project-description" type="text" class="form-input" placeholder="Краткое описание">
           </div>
-          <div class="form-group" style="margin-bottom:14px">
+          <div class="form-group" style="margin-bottom:14px"{% if is_local_mode %} hidden{% endif %}>
             <label class="form-label">Подключение к БД</label>
             <select id="project-db-setting" class="form-input" style="height:30px">
               <option value="">— выберите подключение —</option>
@@ -198,6 +207,7 @@
     </div>
 
     <script>
+      var IS_LOCAL_MODE = {{ 'true' if is_local_mode else 'false' }};
       var _dbSettings = [];
       var _deleteId = null;
       var _dbCredentials = [];
@@ -210,9 +220,23 @@
           var data = await resp.json();
           if (!resp.ok || data.errors) { showErrors(data.errors || ['Ошибка загрузки']); return; }
           _dbSettings = data.settings || [];
-          renderSelect(keepId);
+          if (IS_LOCAL_MODE) {
+            _renderLocalDbInfo();
+          } else {
+            renderSelect(keepId);
+          }
         } catch (e) { showErrors(['Ошибка соединения: ' + e.message]); }
       }
+
+      function _renderLocalDbInfo() {
+        var info = document.getElementById('local-db-info');
+        if (!info) return;
+        var s = _dbSettings[0];
+        info.textContent = s
+          ? 'postgresql://' + s.host + ':' + s.port + '/' + s.name
+          : '— не задано —';
+      }
+
 
       function renderSelect(keepId) {
         var sel = document.getElementById('db-settings-select');
@@ -399,11 +423,15 @@
 
       async function saveProject() {
         var id = document.getElementById('project-id').value;
+        var dbSettingId = document.getElementById('project-db-setting').value || null;
+        if (IS_LOCAL_MODE && !dbSettingId && _dbSettings.length) {
+          dbSettingId = _dbSettings[0].id;
+        }
         var payload = {
           id: id ? parseInt(id) : null,
           code: document.getElementById('project-code').value,
           description: document.getElementById('project-description').value,
-          db_setting_id: document.getElementById('project-db-setting').value || null,
+          db_setting_id: dbSettingId,
           schema: document.getElementById('project-schema').value,
         };
         try {
@@ -574,7 +602,7 @@
       }
 
       loadDbSettings();
-      loadDbCredentials();
+      if (!IS_LOCAL_MODE) loadDbCredentials();
       loadProjects().then(loadActualProject);
     </script>
   </body>
