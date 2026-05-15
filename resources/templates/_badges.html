@@ -1,12 +1,12 @@
-<div class="mode-badge mode-badge--{{ run_mode }}">
-  {% if run_mode == 'local' %}локальный режим{% else %}серверный режим{% endif %}
-</div>
-{% if current_user %}
 <div class="content-badges">
+  {% if current_user %}
   {% set _db_line = '  | postgresql://' ~ current_user.db_host ~ ':' ~ current_user.db_port ~ '/' ~ current_user.db_name ~ '  | схема ' ~ current_user.project_schema %}
   {% set _tooltip = (current_user.project_description ~ ' ' ~ _db_line) if current_user.project_description else _db_line %}
   <div class="project-badge" data-tooltip="{{ _tooltip }}">Проект: {{ current_user.project_code or 'не задан' }}</div>
+  {% endif %}
+  <div class="mode-badge mode-badge--{{ run_mode }}">
+    {% if run_mode == 'local' %}локальный режим{% else %}серверный режим{% endif %}
+  </div>
 </div>
-{% endif %}
 
 {% include '_errors.html' %}

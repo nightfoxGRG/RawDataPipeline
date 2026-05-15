@@ -4,6 +4,7 @@ from config.config_loader import get_config
 
 _db_urls: dict[str | None, str] = {}
 _DB_SYSTEM_SCHEMA: str = "data_pipline_schema"
+_db_system_schema_override: str | None = None
 
 
 def _build_url(driver: str | None = None) -> str:
@@ -40,4 +41,20 @@ def get_db_url(driver: str | None = None) -> str:
     return db_url
 
 def get_db_system_schema() -> str:
+    if _db_system_schema_override:
+        return _db_system_schema_override
+    try:
+        cfg = get_config()
+        schema = cfg.get('database', {}).get('schema')
+        if schema:
+            return schema
+    except Exception:
+        pass
     return _DB_SYSTEM_SCHEMA
+
+
+def reset_db_urls() -> None:
+    """Сбросить кеш URL-ов (после изменения config)."""
+    global _db_urls, _db_system_schema_override
+    _db_urls = {}
+    _db_system_schema_override = None

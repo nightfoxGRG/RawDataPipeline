@@ -1,73 +1,88 @@
 # config_loader.py
 import os
 import tomllib
+from pathlib import Path
 from typing import Any, Dict
+
 from common.project_paths import ProjectPaths
+from common.user_data_paths import user_config_file
+from config.app_mode import AppMode, get_app_mode
+
+
+class ConfigMissingError(RuntimeError):
+    """Локальный config-файл не найден (или незавершённый onboarding)."""
+
 
 # Кеш для загруженного конфига
 _config: Dict[str, Any] | None = None
 
+
 def get_config() -> Dict[str, Any]:
     """Возвращает текущий конфиг.
     Если конфиг ещё не был загружен, загружает его автоматически.
-
-    Returns:
-        Словарь с конфигурацией
     """
     global _config
     if _config is None:
         return _load_config()
     return _config
 
+
 def reset_config() -> None:
-    """Сбросить закешированный конфиг.
-    Полезно для тестов, когда нужно перезагрузить конфигурацию.
-    """
+    """Сбросить закешированный конфиг (например, после onboarding-сохранения)."""
     global _config
     _config = None
 
+
+def local_config_path() -> Path:
+    """Путь к локальному config-оверрайду.
+
+    В local-режиме — пользовательский каталог (~/.config/DataPipelinePro/).
+    В server-режиме (APP_ENV=local при запуске из исходников) — resources/config.local.toml.
+    """
+    if get_app_mode() == AppMode.LOCAL:
+        return user_config_file()
+    return ProjectPaths.CONFIG / 'config.local.toml'
+
+
 def _load_config(force_reload: bool = False) -> dict:
     """Загрузить конфигурацию.
-    При первом вызове читает файлы и кеширует результат.
-    При повторных вызовах возвращает закешированный словарь.
 
-    Базовый файл: config/config.toml (хранится в git, без секретов)
-    Локальный оверрайд: config/config.local.toml (в .gitignore, секреты)
-    config.local.toml применяется только если APP_ENV=local.
-    Значения из local перекрывают значения из base (deep merge)
-
-    Args:
-        force_reload: если True, принудительно перечитать файлы с диска
+    Базовый файл: resources/config.toml (всегда читается)
+    Локальный оверрайд:
+      - LOCAL mode  → ~/.config/DataPipelinePro/config.local.toml (обязательный)
+      - SERVER mode → resources/config.local.toml (если APP_ENV=local)
+    Значения из local перекрывают значения из base (deep merge).
     """
     global _config
-
-    # Возвращаем кеш, если он есть и не требуется принудительная перезагрузка
     if _config is not None and not force_reload:
         return _config
 
     base_path = ProjectPaths.CONFIG / 'config.toml'
-    local_path = ProjectPaths.CONFIG / 'config.local.toml'
+    if not base_path.exists():
+        raise RuntimeError(f'Не найден конфигурационный файл: {base_path}')
+    with open(base_path, 'rb') as f:
+        cfg = tomllib.load(f)
 
-    cfg: dict = {}
-    if base_path.exists():
-        with open(base_path, 'rb') as f:
-            cfg = tomllib.load(f)
+    mode = get_app_mode()
+
+    if mode == AppMode.LOCAL:
+        local_path = user_config_file()
+        if not local_path.exists():
+            raise ConfigMissingError(f'Локальный config не найден: {local_path}')
+        with open(local_path, 'rb') as f:
+            cfg = _deep_merge(cfg, tomllib.load(f))
     else:
-        raise RuntimeError(f"Не найден конфигурационный файл: {base_path.absolute}")
-
-    app_env = os.getenv('APP_ENV', '').lower()
-
-    if app_env == 'local':
-        if local_path.exists():
+        # server: легаси-поведение, оверрайд через APP_ENV=local
+        if (os.getenv('APP_ENV') or '').lower() == 'local':
+            local_path = ProjectPaths.CONFIG / 'config.local.toml'
+            if not local_path.exists():
+                raise RuntimeError(f'Не найден локальный конфигурационный файл: {local_path}')
             with open(local_path, 'rb') as f:
-                local_cfg = tomllib.load(f)
-            cfg = _deep_merge(cfg, local_cfg)
-        else:
-            raise RuntimeError(f"Не найден локальный конфигурационный файл: {local_path.absolute}")
+                cfg = _deep_merge(cfg, tomllib.load(f))
 
-    # Кешируем результат
     _config = cfg
     return cfg
+
 
 def _deep_merge(base: dict, override: dict) -> dict:
     """Рекурсивно объединить словари: override перекрывает base."""

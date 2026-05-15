@@ -10,7 +10,7 @@ from domains.configurator.table_config_generator_service import TABLE_CONFIG_BUC
 from domains.configurator.table_config_parser_service import TableConfigParserService
 from domains.generator.sql_generator_service import PACKAGE_ID, PACKAGE_TIMESTAMP, SOURCE
 from domains.working_db.information_schema_repository import InformationSchemaRepository
-from domains.minio.minio_service import MinioService
+from common.storage.table_config_storage import get_table_config_storage
 from domains.project.project_repository import ProjectRepository
 from domains.source_to_table.source_to_table_model import SourceToTableModel
 from domains.source_to_table.source_to_table_repository import SourceToTableRepository
@@ -22,7 +22,7 @@ class SourceToTableService(metaclass=SingletonMeta):
 
     def __init__(self) -> None:
         self._parser = TableConfigParserService()
-        self._minio = MinioService()
+        self._storage = get_table_config_storage()
         self._project_repository = ProjectRepository()
         self._source_to_table_repository = SourceToTableRepository()
         self._source_to_table_config_repository = SourceToTableConfigRepository()
@@ -40,7 +40,7 @@ class SourceToTableService(metaclass=SingletonMeta):
         project = self._project_repository.find_by_id(user.project_id)
         if not project or not project.table_config_minio_id:
             raise AppError('Конфигурационный файл в системе отсутствует.')
-        content = self._minio.download_bytes(TABLE_CONFIG_BUCKET, project.table_config_minio_id)
+        content = self._storage.download_bytes(TABLE_CONFIG_BUCKET, project.table_config_minio_id)
 
         tables = self._parser.parse_tables_config(content, 'config.xlsm')
         if not tables:

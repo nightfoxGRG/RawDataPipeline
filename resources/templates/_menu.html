@@ -19,6 +19,7 @@
     <a {% if not _no_project %}href="{{ url_for('get_analyzer') }}"{% endif %}
        class="nav-link{% if active_page == 'analyzer' %} nav-link--active{% elif _no_project %} nav-link--disabled{% endif %}">Анализатор</a>
   </nav>
+  {% if not is_local_mode %}
   <div class="sidebar-user">
     <div class="user-dropdown" id="user-dropdown" style="display:none">
       <a href="#" class="user-dropdown-item" onclick="openProfileModal(event)">Профиль</a>
@@ -34,6 +35,8 @@
       <span class="user-menu-dots">⋮</span>
     </div>
   </div>
+  {% endif %}
+  {% if not is_local_mode %}
   <script>
     function toggleUserMenu(e) {
       e.stopPropagation();
@@ -54,8 +57,10 @@
       document.getElementById('profile-modal-overlay').style.display = 'none';
     }
   </script>
+  {% endif %}
 </aside>
 
+{% if not is_local_mode %}
 <!-- Модал профиля -->
 <div id="profile-modal-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeProfileModal()">
   <div class="modal" style="max-width:420px;width:90%">
@@ -106,3 +111,4 @@
     </div>
   </div>
 </div>
+{% endif %}

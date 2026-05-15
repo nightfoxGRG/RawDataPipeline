@@ -20,7 +20,7 @@ from domains.configurator.table_config_generator_service import TABLE_CONFIG_BUC
 from domains.configurator.table_config_parser_service import TableConfigParserService
 from domains.loader.data_stream import DataStream
 from domains.loader.loader_service import LoaderService
-from domains.minio.minio_service import MinioService
+from common.storage.table_config_storage import get_table_config_storage
 from domains.project.project_repository import ProjectRepository
 from domains.source_to_table.source_to_table_config_repository import SourceToTableConfigRepository
 
@@ -31,7 +31,7 @@ class LoaderByTableConfigService(metaclass=SingletonMeta):
 
     def __init__(self) -> None:
         self._parser = TableConfigParserService()
-        self._minio = MinioService()
+        self._storage = get_table_config_storage()
         self._project_repository = ProjectRepository()
         self._config_repository = SourceToTableConfigRepository()
         self._loader_service = LoaderService()
@@ -53,7 +53,7 @@ class LoaderByTableConfigService(metaclass=SingletonMeta):
         if not project or not project.table_config_minio_id:
             raise AppError('Конфигурационный файл в системе отсутствует.')
 
-        config_content = self._minio.download_bytes(TABLE_CONFIG_BUCKET, project.table_config_minio_id)
+        config_content = self._storage.download_bytes(TABLE_CONFIG_BUCKET, project.table_config_minio_id)
         tables = self._parser.parse_tables_config(config_content, 'config.xlsm')
 
         # filename (lowercase, basename with extension) -> table_name

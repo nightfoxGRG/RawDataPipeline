@@ -1,19 +1,39 @@
-# Сборка исполняемого файла TableCreator
+# Сборка DataPipelinePro для локального запуска
 
-## Что получится
+## Что получается
 
-| Платформа | Результат                     | Запуск                        |
-|-----------|-------------------------------|-------------------------------|
-| macOS     | `dist/TableCreator.app`       | двойной клик или `open dist/TableCreator.app` |
-| Windows   | `dist/TableCreator.exe`       | двойной клик                  |
+| Платформа | Результат                       | Запуск                              |
+|-----------|---------------------------------|-------------------------------------|
+| macOS     | `dist/DataPipelinePro.app`      | двойной клик или `open dist/DataPipelinePro.app` |
+| Windows   | `dist/DataPipelinePro.exe`      | двойной клик                        |
 
-При запуске автоматически откроется браузер по адресу `http://127.0.0.1:8080`.
+При запуске:
+1. Создаётся пользовательский каталог:
+   - macOS/Linux: `~/.config/DataPipelinePro/`
+   - Windows: `%APPDATA%\DataPipelinePro\`
+2. Туда копируется `config.local.toml` (шаблон).
+3. Открывается браузер на `http://127.0.0.1:8080`.
+4. Если в config-файле не заполнены параметры БД — открывается onboarding-форма `/setup`.
+
+После заполнения и сохранения формы — применяются миграции и приложение готово к работе.
+
+---
+
+## Локальный режим — что отключено
+
+| Подсистема    | Server-режим              | Local-режим                                   |
+|---------------|---------------------------|-----------------------------------------------|
+| Авторизация   | Keycloak (OIDC)           | Без авторизации; пользователь = LOCAL_USER    |
+| Файлы конфиг. | MinIO                     | Файловая система `~/.config/DataPipelinePro/table_configs/` |
+| Настройки БД  | Управление списком в UI   | Read-only из config.local.toml                |
+| LibreTranslate| URL из config             | Так же из config (как в server)               |
 
 ---
 
 ## Требования
 
 ```bash
+pip install -r requirements.txt
 pip install pyinstaller
 ```
 
@@ -24,14 +44,9 @@ pip install pyinstaller
 ```bash
 cd /Volumes/External_SSD/work/projects/DataPipelinePro
 
-# Установить зависимости (если не установлены)
-pip install -r requirements.txt
-pip install pyinstaller
+pyinstaller build/RawDataPipeline.spec
 
-# Собрать
-pyinstaller DataPipelinePro.spec
-
-# Запустить
+# Запуск
 open dist/DataPipelinePro.app
 # или
 ./dist/DataPipelinePro
@@ -39,37 +54,38 @@ open dist/DataPipelinePro.app
 
 ## Сборка на Windows
 
-> **Важно:** сборку нужно выполнять **на той же платформе**, на которой будет запускаться файл.  
-> Exe под Windows собирается на Windows, .app под macOS — на macOS.
+> Сборка под Windows должна выполняться **на Windows**.
 
 ```cmd
-cd C:\путь\до\TableCreator
+cd C:\путь\до\DataPipelinePro
 
-pip install -r requirements.txt
-pip install pyinstaller
+pyinstaller build\RawDataPipeline.spec
 
-pyinstaller TableCreator.spec
-
-dist\TableCreator.exe
+dist\DataPipelinePro.exe
 ```
 
 ---
 
-## Структура после сборки
+## Запуск из исходников (server-режим)
 
+```bash
+python app.py
 ```
-dist/
-  TableCreator          ← исполняемый файл (macOS/Linux)
-  TableCreator.exe      ← исполняемый файл (Windows)
-  TableCreator.app/     ← .app bundle для macOS
+
+По умолчанию режим `server` — нужен Keycloak и MinIO. Чтобы запустить локально из
+исходников (без Keycloak/MinIO), укажите режим явно:
+
+```bash
+APP_MODE=local python app.py
 ```
 
 ---
 
 ## Советы
 
-- **Консольное окно** — в `TableCreator.spec` параметр `console=True` показывает терминал (удобно для отладки). Установите `console=False` чтобы скрыть.
-- **Иконка** — раскомментируйте строку `icon=` в spec-файле и укажите путь к `.ico` (Windows) или `.icns` (macOS).
-- **Антивирус** — на Windows некоторые антивирусы могут блокировать PyInstaller-файлы. Это ложное срабатывание.
-- **Размер файла** — обычно 30–60 МБ, так как внутри упакован интерпретатор Python.
-
+- **Консольное окно** в `RawDataPipeline.spec`: `console=True` оставляет видимый
+  терминал (полезно для отладки). Установите `console=False` для скрытия.
+- **Иконка** — раскомментируйте `icon=` в spec.
+- **Где править параметры БД после сборки** — `~/.config/DataPipelinePro/config.local.toml`
+  или через onboarding-форму на `/setup`, или кнопкой "Открыть config в редакторе"
+  в Параметризаторе.
