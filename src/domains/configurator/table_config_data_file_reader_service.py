@@ -113,7 +113,10 @@ class TableConfigDataFileReaderService(metaclass=SingletonMeta):
         code = re.sub(r'[^A-Za-z0-9_]', '', code)
         if code and code[0].isdigit():
             code = '_' + code
-        return code.lower() or 'col'
+        code = code.lower() or 'col'
+        if code == 'id':
+            code = 'source_id'
+        return code
 
     def _infer_db_type(self, values: list) -> tuple[str, str | None]:
         nn = self._non_null(values)

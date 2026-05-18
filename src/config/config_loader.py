@@ -36,7 +36,7 @@ def reset_config() -> None:
 def local_config_path() -> Path:
     """Путь к локальному config-оверрайду.
 
-    В local-режиме — пользовательский каталог (~/.config/DataPipelinePro/).
+    В local-режиме — пользовательский каталог (~/.config/RawDataPipeline/).
     В server-режиме (APP_ENV=local при запуске из исходников) — resources/config.local.toml.
     """
     if get_app_mode() == AppMode.LOCAL:
@@ -49,7 +49,7 @@ def _load_config(force_reload: bool = False) -> dict:
 
     Базовый файл: resources/config.toml (всегда читается)
     Локальный оверрайд:
-      - LOCAL mode  → ~/.config/DataPipelinePro/config.local.toml (обязательный)
+      - LOCAL mode  → ~/.config/RawDataPipeline/config.local.toml (обязательный)
       - SERVER mode → resources/config.local.toml (если APP_ENV=local)
     Значения из local перекрывают значения из base (deep merge).
     """

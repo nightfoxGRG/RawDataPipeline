@@ -1,14 +1,14 @@
 # config.local.template.toml
 # Шаблон локального конфигурационного файла для local-сборки.
-# При первом запуске копируется в ~/.config/DataPipelinePro/config.local.toml
-# (или %APPDATA%\DataPipelinePro\config.local.toml на Windows).
+# При первом запуске копируется в ~/.config/RawDataPipeline/config.local.toml
+# (или %APPDATA%\RawDataPipeline\config.local.toml на Windows).
 # Можно отредактировать в текстовом редакторе или через onboarding-форму.
 
 [database]
 host     = "localhost"
 port     = 5432
 name     = ""
-schema   = "data_pipline_schema"
+schema   = "raw_data_pipline_schema"
 user     = ""
 password = ""
 

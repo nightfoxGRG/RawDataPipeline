@@ -2,7 +2,7 @@
 Точка входа для local-сборки (PyInstaller).
 
 При первом запуске копирует config.local.template.toml в пользовательский каталог
-(~/.config/DataPipelinePro/ или %APPDATA%\\DataPipelinePro\\), запускает Flask и
+(~/.config/RawDataPipeline/ или %APPDATA%\\RawDataPipeline\\), запускает Flask и
 открывает браузер. Onboarding-форма доступна на /setup до тех пор пока config
 не валиден.
 """
@@ -23,7 +23,7 @@ def resource_path(relative_path: str) -> str:
 
 
 def _bootstrap_user_data() -> None:
-    """Создать ~/.config/DataPipelinePro/ и положить туда config.local.toml из шаблона."""
+    """Создать ~/.config/RawDataPipeline/ и положить туда config.local.toml из шаблона."""
     _src = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src')
     if _src not in sys.path:
         sys.path.insert(0, _src)
@@ -37,7 +37,7 @@ def _bootstrap_user_data() -> None:
             shutil.copy2(template, target)
         else:
             target.write_text(
-                '[database]\nhost = "localhost"\nport = 5432\nname = ""\nschema = "data_pipline_schema"\n'
+                '[database]\nhost = "localhost"\nport = 5432\nname = ""\nschema = "raw_data_pipline_schema"\n'
                 'user = ""\npassword = ""\n\n'
                 '[translation]\nlibretranslate_url = "http://127.0.0.1:50001"\napi_key = ""\n',
                 encoding='utf-8',
@@ -100,13 +100,13 @@ def _run_macos_with_splash() -> None:
     window = NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
         rect, NSWindowStyleMaskTitled, NSBackingStoreBuffered, False,
     )
-    window.setTitle_("DataPipelinePro")
+    window.setTitle_("RawDataPipeline")
     window.setReleasedWhenClosed_(False)
 
     content = window.contentView()
 
     title = NSTextField.alloc().initWithFrame_(NSMakeRect(20, 95, 400, 24))
-    title.setStringValue_("DataPipelinePro")
+    title.setStringValue_("RawDataPipeline")
     title.setFont_(NSFont.boldSystemFontOfSize_(16))
     title.setEditable_(False)
     title.setBezeled_(False)
@@ -219,6 +219,6 @@ if __name__ == '__main__':
         from app import create_app
         flask_app = create_app()
         threading.Timer(1.5, open_browser).start()
-        print('DataPipelinePro запущен: http://127.0.0.1:8080')
+        print('RawDataPipeline запущен: http://127.0.0.1:8080')
         print('Для остановки нажмите Ctrl+C')
         flask_app.run(host='127.0.0.1', port=8080, debug=False, use_reloader=False)
