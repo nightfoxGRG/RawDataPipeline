@@ -15,7 +15,7 @@ class ProjectModel(Base):
     __table_args__ = (
         Index('idx_project_unique', 'db_setting_id', 'schema', unique=True),
         CheckConstraint(
-            "schema NOT IN ('public', 'pg_catalog', 'information_schema', 'pg_toast', 'data_pipline_schema')",
+            "schema NOT IN ('public', 'pg_catalog', 'information_schema', 'pg_toast', 'raw_data_pipline_schema')",
             name='project_schema_forbidden',
         ),
         CheckConstraint(

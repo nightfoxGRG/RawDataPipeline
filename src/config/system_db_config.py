@@ -3,7 +3,7 @@
 from config.config_loader import get_config
 
 _db_urls: dict[str | None, str] = {}
-_DB_SYSTEM_SCHEMA: str = "data_pipline_schema"
+_DB_SYSTEM_SCHEMA: str = "raw_data_pipline_schema"
 _db_system_schema_override: str | None = None
 
 
