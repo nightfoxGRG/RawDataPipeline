@@ -31,14 +31,28 @@ body {
 }
 
 .sidebar-project-name {
-  padding: 18px 10px 14px;
+  padding: 14px 10px 12px;
   font-size: 15px;
   font-weight: 700;
   color: #1a1a1a;
   border-bottom: 1px solid #e0e4ea;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sidebar-project-name > span {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.sidebar-project-icon {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  display: block;
 }
 
 /* ── Бейдж режима (внутри .content-badges, рядом с Проект) ── */

@@ -100,13 +100,13 @@ def _run_macos_with_splash() -> None:
     window = NSWindow.alloc().initWithContentRect_styleMask_backing_defer_(
         rect, NSWindowStyleMaskTitled, NSBackingStoreBuffered, False,
     )
-    window.setTitle_("RawDataPipeline")
+    window.setTitle_("Конвейер Данных")
     window.setReleasedWhenClosed_(False)
 
     content = window.contentView()
 
     title = NSTextField.alloc().initWithFrame_(NSMakeRect(20, 95, 400, 24))
-    title.setStringValue_("RawDataPipeline")
+    title.setStringValue_("Конвейер Данных")
     title.setFont_(NSFont.boldSystemFontOfSize_(16))
     title.setEditable_(False)
     title.setBezeled_(False)

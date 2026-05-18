@@ -47,7 +47,8 @@ cd /Volumes/External_SSD/work/projects/RawDataPipeline
 pyinstaller build/RawDataPipeline.spec
 
 # Запуск
-open dist/RawDataPipeline.app
+open "dist/Конвейер Данных.app"
+
 # или
 ./dist/RawDataPipeline
 ```
