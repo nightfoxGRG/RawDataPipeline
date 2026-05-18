@@ -3,8 +3,8 @@
 
 В local-сборке config.local.toml и xlsx-файлы конфигуратора живут в пользовательском
 каталоге (.app/.exe read-only), не в bundled-ресурсах:
-  macOS/Linux:  ~/.config/DataPipelinePro/
-  Windows:      %APPDATA%\\DataPipelinePro\\
+  macOS/Linux:  ~/.config/RawDataPipeline/
+  Windows:      %APPDATA%\\RawDataPipeline\\
 """
 
 import os
@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 
 
-_APP_NAME = 'DataPipelinePro'
+_APP_NAME = 'RawDataPipeline'
 
 
 def user_data_dir() -> Path:

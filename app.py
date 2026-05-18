@@ -172,24 +172,36 @@ def _open_in_editor(path: str) -> None:
 
 
 def _ensure_local_db_setting() -> None:
-    """В local-режиме гарантируем существование единственной db_setting из config."""
+    """В local-режиме гарантируем существование db_setting + db_setting_credential из config."""
     from domains.db_setting.db_setting_repository import DbSettingRepository
     from domains.db_setting.db_setting_model import DbSettingModel
+    from domains.db_setting_credential.db_setting_credential_repository import DbSettingCredentialRepository
+    from domains.db_setting_credential.db_setting_credential_model import DbSettingCredentialModel
     db = get_config().get('database', {})
     repo = DbSettingRepository()
+    cred_repo = DbSettingCredentialRepository()
     existing = repo.find_all()
-    if existing:
-        return
     user = _users_service.get_user_info(_LOCAL_USER_SUBJECT_ID)
     if user is None:
         raise AppError('LOCAL_USER не найден после миграций.')
-    repo.save(DbSettingModel(
-        db_label='Локальная БД',
-        host=db.get('host'),
-        port=int(db.get('port') or 5432),
-        name=db.get('name'),
-        created_by=user.user_id,
-    ))
+    if not existing:
+        setting = repo.save(DbSettingModel(
+            db_label='Локальная БД',
+            host=db.get('host'),
+            port=int(db.get('port') or 5432),
+            name=db.get('name'),
+            created_by=user.user_id,
+        ))
+    else:
+        setting = existing[0]
+    if not cred_repo.find_by_user_and_setting(user.user_id, setting.id):
+        cred_repo.save(DbSettingCredentialModel(
+            user_id=user.user_id,
+            db_setting_id=setting.id,
+            login=db.get('user') or '',
+            password=db.get('password') or '',
+            created_by=user.user_id,
+        ))
 
 
 def _read_setup_defaults() -> dict:
@@ -204,7 +216,7 @@ def _read_setup_defaults() -> dict:
         'host': db.get('host') or 'localhost',
         'port': db.get('port') or 5432,
         'name': db.get('name') or '',
-        'schema': db.get('schema') or 'data_pipline_schema',
+        'schema': db.get('schema') or 'raw_data_pipline_schema',
         'user': db.get('user') or '',
         'password': db.get('password') or '',
         'libretranslate_url': tr.get('libretranslate_url') or 'http://127.0.0.1:50001',
@@ -256,7 +268,7 @@ def _write_setup_config(data: dict) -> None:
         f'host     = "{db["host"]}"',
         f'port     = {int(db["port"])}',
         f'name     = "{db["name"]}"',
-        f'schema   = "{db.get("schema") or "data_pipline_schema"}"',
+        f'schema   = "{db.get("schema") or "raw_data_pipline_schema"}"',
         f'user     = "{db["user"]}"',
         f'password = "{db.get("password") or ""}"',
         '',
@@ -280,11 +292,11 @@ def create_app() -> Flask:
 
     try:
         cfg = get_config()
-        _project_name = cfg.get('app', {}).get('project_name', 'DataPipelinePro')
+        _project_name = cfg.get('app', {}).get('project_name', 'RawDataPipeline')
         app.secret_key = cfg.get('app', {}).get('secret_key', 'dev-secret-change-me')
     except ConfigMissingError:
         # local-режим без config — стартуем с дефолтами и идём на /setup
-        _project_name = 'DataPipelinePro'
+        _project_name = 'RawDataPipeline'
         app.secret_key = 'dev-secret-change-me'
 
     if not os.environ.get('FLASK_TESTING') and not _is_local:
@@ -378,6 +390,10 @@ def create_app() -> Flask:
     @app.post('/parametrizer/db-credentials')
     def post_db_credential():
         return _db_setting_credential_service.save_credential(request.get_json(force=True, silent=True) or {})
+
+    @app.post('/parametrizer/db-credentials/test')
+    def test_db_credential():
+        return _db_setting_credential_service.test_credential(request.get_json(force=True, silent=True) or {})
 
     @app.get('/parametrizer/projects')
     def get_projects():

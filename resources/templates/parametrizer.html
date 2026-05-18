@@ -199,9 +199,11 @@
             <input id="db-cred-password" type="password" class="form-input" placeholder="Новый пароль">
           </div>
         </div>
-        <div class="modal-actions">
+        <div class="modal-actions" style="flex-wrap:wrap;gap:8px">
           <button type="button" class="btn-modal-cancel" onclick="closeCredModal()">Отмена</button>
+          <button type="button" onclick="testCredential()" style="margin-top:0;flex:none">Проверить подключение</button>
           <button type="button" class="btn-modal-primary" style="flex:none;width:auto;padding:0 28px" onclick="saveCredential()">Сохранить</button>
+          <span id="db-cred-test-status" style="font-size:13px;width:100%;margin-top:2px"></span>
         </div>
       </div>
     </div>
@@ -313,6 +315,7 @@
           var savedId = data.setting ? data.setting.id : null;
           closeDbSettingModal();
           await loadDbSettings(savedId);
+          await loadDbCredentials(savedId);
         } catch (e) { showErrors(['Ошибка соединения: ' + e.message]); }
       }
 
@@ -341,6 +344,7 @@
           var data = await resp.json();
           if (!resp.ok || data.errors) { showErrors(data.errors || ['Ошибка удаления']); return; }
           await loadDbSettings();
+          await loadDbCredentials();
         } catch (e) { showErrors(['Ошибка соединения: ' + e.message]); }
       }
 
@@ -518,11 +522,42 @@
         document.getElementById('db-cred-id').value = cred.db_setting_id;
         document.getElementById('db-cred-login').value = cred.login || '';
         document.getElementById('db-cred-password').value = '';
+        document.getElementById('db-cred-test-status').textContent = '';
         document.getElementById('db-cred-overlay').style.display = 'flex';
       }
 
       function closeCredModal() {
         document.getElementById('db-cred-overlay').style.display = 'none';
+        document.getElementById('db-cred-test-status').textContent = '';
+      }
+
+      async function testCredential() {
+        var statusEl = document.getElementById('db-cred-test-status');
+        statusEl.textContent = 'Проверка…';
+        statusEl.style.color = '#5f6368';
+        var payload = {
+          db_setting_id: parseInt(document.getElementById('db-cred-id').value),
+          login: document.getElementById('db-cred-login').value.trim(),
+          password: document.getElementById('db-cred-password').value,
+        };
+        try {
+          var resp = await fetch('{{ url_for("test_db_credential") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          var data = await resp.json();
+          if (!resp.ok || data.errors) {
+            statusEl.textContent = (data.errors || ['Ошибка проверки'])[0];
+            statusEl.style.color = '#c62828';
+          } else {
+            statusEl.textContent = 'Подключение успешно.';
+            statusEl.style.color = '#2e7d32';
+          }
+        } catch (e) {
+          statusEl.textContent = 'Ошибка соединения: ' + e.message;
+          statusEl.style.color = '#c62828';
+        }
       }
 
       async function saveCredential() {
