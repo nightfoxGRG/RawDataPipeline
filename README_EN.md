@@ -1,5 +1,5 @@
 
-# DataPipelinePro / RawDataPipeline
+#  RawDataPipeline
 
 A Flask web application for building a raw data ingestion pipeline into PostgreSQL: from inferring table structure based on a sample file to loading data into the database and analyzing data quality.
 
