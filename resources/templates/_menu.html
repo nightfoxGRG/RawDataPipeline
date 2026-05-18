@@ -1,6 +1,9 @@
 {% set _no_project = not current_user or current_user.project_id is none %}
 <aside class="sidebar">
-  <div class="sidebar-project-name">{{ project_name }}</div>
+  <div class="sidebar-project-name">
+    <img src="{{ url_for('static', filename='icon.svg') }}" alt="" class="sidebar-project-icon"/>
+    <span>{{ project_name }}</span>
+  </div>
   <nav class="sidebar-nav">
     <a href="{{ url_for('get_parametrizer') }}" class="nav-link{% if active_page == 'parametrizer' %} nav-link--active{% endif %}">Параметризатор</a>
 
