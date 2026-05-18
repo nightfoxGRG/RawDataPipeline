@@ -63,3 +63,40 @@ class DbSettingCredentialService(metaclass=SingletonMeta):
 
         self._repository.save(credential)
         return jsonify(ok=True)
+
+    def test_credential(self, data: dict) -> Response:
+        user = ContextService.get_user_info()
+        db_setting_id = data.get('db_setting_id')
+        login = (data.get('login') or '').strip()
+        password = (data.get('password') or '').strip()
+
+        if not db_setting_id:
+            raise AppError('Не указан идентификатор подключения.')
+
+        from domains.db_setting.db_setting_repository import DbSettingRepository
+        setting = DbSettingRepository().find_by_id(int(db_setting_id))
+        if not setting:
+            raise AppError('Подключение не найдено.')
+
+        if not password:
+            stored = self._repository.find_by_user_and_setting(user.user_id, int(db_setting_id))
+            if stored is None:
+                raise AppError('Нет сохранённых учётных данных — введите пароль.')
+            password = stored.password
+            if not login:
+                login = stored.login
+
+        import psycopg2
+        try:
+            conn = psycopg2.connect(
+                host=setting.host,
+                port=int(setting.port),
+                dbname=setting.name,
+                user=login,
+                password=password,
+                connect_timeout=5,
+            )
+            conn.close()
+            return jsonify(ok=True)
+        except Exception as exc:
+            return jsonify(errors=[f'Не удалось подключиться: {exc}']), 422

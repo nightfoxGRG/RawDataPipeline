@@ -8,7 +8,7 @@ __pycache__/
 /src/config/config.local.toml
 /.idea/copilot.data.migration.ask2agent.xml
 /.idea/copilotDiffState.xml
-/.idea/DataPipelinePro.iml
+/.idea/RawDataPipeline.iml
 /.idea/dataSources.xml
 /.idea/misc.xml
 /.idea/modules.xml
@@ -23,7 +23,7 @@ build/TableCreator.spec
 build/RawDataPipeline/Analysis-00.toc
 build/RawDataPipeline/base_library.zip
 build/RawDataPipeline/BUNDLE-00.toc
-build/RawDataPipeline/DataPipelinePro.pkg
+build/RawDataPipeline/RawDataPipeline.pkg
 build/RawDataPipeline/EXE-00.toc
 build/RawDataPipeline/PKG-00.toc
 build/RawDataPipeline/PYZ-00.pyz
@@ -31,8 +31,8 @@ build/RawDataPipeline/PYZ-00.toc
 build/RawDataPipeline/warn-RawDataPipeline.txt
 build/RawDataPipeline/xref-RawDataPipeline.html
 dist/.DS_Store
-dist/DataPipelinePro
-dist/DataPipelinePro.app/Contents/Info.plist
-dist/DataPipelinePro.app/Contents/MacOS/DataPipelinePro
-dist/DataPipelinePro.app/Contents/Resources/icon-windowed.icns
-dist/DataPipelinePro.app/Contents/_CodeSignature/CodeResources
+dist/RawDataPipeline
+dist/RawDataPipeline.app/Contents/Info.plist
+dist/RawDataPipeline.app/Contents/MacOS/RawDataPipeline
+dist/RawDataPipeline.app/Contents/Resources/icon-windowed.icns
+dist/RawDataPipeline.app/Contents/_CodeSignature/CodeResources

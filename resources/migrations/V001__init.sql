@@ -65,7 +65,7 @@ create table project
 
     -- Запрещаем зарезервированные имена
     constraint project_schema_forbidden check (
-        schema not in ('public', 'pg_catalog', 'information_schema', 'pg_toast', 'data_pipline_schema')
+        schema not in ('public', 'pg_catalog', 'information_schema', 'pg_toast', 'raw_data_pipline_schema')
         ),
 
     -- Добавляем проверку на нижний регистр, цифры и подчеркивания
