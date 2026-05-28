@@ -530,18 +530,22 @@ def create_app() -> Flask:
         return render_template(
             'generator.html',
             sql_output='',
+            rename_id=True,
             add_pk=True,
             add_package_fields=True,
+            comment_format='comment',
         )
 
     @app.post('/sql_generator')
     def post_sql_generator():
-        sql_output, add_pk, add_package_fields = _sql_generator.generate_sql_from_system_config(request.form)
+        sql_output, rename_id, add_pk, add_package_fields, comment_format = _sql_generator.generate_sql_from_system_config(request.form)
         return render_template(
             'generator.html',
             sql_output=sql_output,
+            rename_id=rename_id,
             add_pk=add_pk,
             add_package_fields=add_package_fields,
+            comment_format=comment_format,
         )
 
     @app.post('/sql_execute')

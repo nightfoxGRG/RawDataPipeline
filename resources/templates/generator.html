@@ -22,6 +22,10 @@
           <button type="submit">Сформировать sql</button>
         </div>
         <div class="checkbox-row">
+          <input type="checkbox" id="rename_id" name="rename_id" value="1" {% if rename_id %}checked{% endif %}>
+          <label for="rename_id">Переименовывать поле <code>id</code> в <code>id_source</code></label>
+        </div>
+        <div class="checkbox-row">
           <input type="checkbox" id="add_pk" name="add_pk" value="1" {% if add_pk %}checked{% endif %}>
           <label for="add_pk">Добавить <code>id</code>, если первичный ключ не задан</label>
         </div>
@@ -29,6 +33,12 @@
           <input type="checkbox" id="add_package_fields" name="add_package_fields" value="1" {% if add_package_fields %}checked{% endif %}>
           <label for="add_package_fields">Добавить <code>__source</code>, <code>__package_id</code> и <code>__package_timestamp</code>, если отсутствуют</label>
         </div>
+        <div class="checkbox-row">
+          <input type="checkbox" id="comment_dashes" name="comment_format" value="dashes" {% if comment_format == 'dashes' %}checked{% endif %}
+                 onchange="document.getElementById('comment_format_hidden').disabled = this.checked">
+          <label for="comment_dashes">Комментарии через <code>--</code> (вместо <code>COMMENT</code>)</label>
+        </div>
+        <input type="hidden" id="comment_format_hidden" name="comment_format" value="comment">
       </form>
 
       {% if errors %}
@@ -144,6 +154,7 @@
         if (createBtn) createBtn.disabled = true;
         try {
           var formData = new FormData();
+          formData.append('rename_id', document.getElementById('rename_id').checked ? '1' : '0');
           formData.append('add_pk', document.getElementById('add_pk').checked ? '1' : '0');
           formData.append('add_package_fields', document.getElementById('add_package_fields').checked ? '1' : '0');
           if (createSchema) formData.append('create_schema', '1');

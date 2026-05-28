@@ -18,6 +18,10 @@ _REFERENCE_PATTERN = re.compile(
     r'^([A-Za-z_][A-Za-z0-9_]*\.)?[A-Za-z_][A-Za-z0-9_]*\([A-Za-z_][A-Za-z0-9_]*\)$'
 )
 _SIZE_PATTERN = re.compile(r'^\d+(\s*,\s*\d+)?$')
+_CONSTRAINT_KEYWORD_PATTERN = re.compile(r'^(CHECK|UNIQUE)\b', re.IGNORECASE)
+_UNIQUE_HEAD_PATTERN = re.compile(r'^UNIQUE\s*\(', re.IGNORECASE)
+_CHECK_HEAD_PATTERN = re.compile(r'^CHECK\s*\(', re.IGNORECASE)
+_UNIQUE_TAIL_PATTERN = re.compile(r'^\s*(WHERE\s+\S.*)?$', re.IGNORECASE)
 
 _POSTGRES_RESERVED_WORDS = {
     'ALL', 'ANALYSE', 'ANALYZE', 'AND', 'ANY', 'ARRAY', 'AS', 'ASC', 'ASYMMETRIC',
@@ -32,6 +36,13 @@ _POSTGRES_RESERVED_WORDS = {
     'SYMMETRIC', 'TABLE', 'THEN', 'TO', 'TRAILING', 'TRUE', 'UNION', 'UNIQUE',
     'USER', 'USING', 'VARIADIC', 'WHEN', 'WHERE', 'WINDOW', 'WITH',
 }
+
+# Операторные ключевые слова, встречающиеся в CHECK барвордами (без скобок),
+# которых нет в списке зарезервированных слов выше.
+_CHECK_EXTRA_KEYWORDS = {'BETWEEN', 'LIKE', 'ILIKE', 'SIMILAR', 'ESCAPE',
+                         'OVERLAPS', 'UNKNOWN'}
+_CHECK_KEYWORDS = _POSTGRES_RESERVED_WORDS | _CHECK_EXTRA_KEYWORDS
+_IDENTIFIER_TOKEN_RE = re.compile(r'[A-Za-z_][A-Za-z0-9_]*')
 
 
 class TableConfigValidator(metaclass=SingletonMeta):
@@ -66,6 +77,16 @@ class TableConfigValidator(metaclass=SingletonMeta):
             for name in sorted(n for n, c in column_name_map.items() if c > 1):
                 errors.append(f'В таблице {table.name} найден дубликат колонки: {name}.')
 
+            column_names_lower = {c.name.lower() for c in table.columns}
+            for expression in table.constraints:
+                try:
+                    self.validate_constraint_expression(expression, table.name)
+                except AppError as exc:
+                    errors.append(str(exc))
+                    continue
+                self._validate_unique_columns(expression, table.name, column_names_lower, errors)
+                self._validate_check_columns(expression, table.name, column_names_lower, errors)
+
         for name in sorted(n for n, c in table_name_map.items() if c > 1):
             errors.append(f'Найден дубликат таблицы: {name}.')
 
@@ -84,10 +105,154 @@ class TableConfigValidator(metaclass=SingletonMeta):
     def validate_reference_cell(self, value: str | None, column: str, table: str) -> None:
         if value is None:
             return
-        if not _REFERENCE_PATTERN.match(value):
+        normalized = re.sub(r'\s*\(\s*', '(', re.sub(r'\s*\)\s*$', ')', value.strip()))
+        if not _REFERENCE_PATTERN.match(normalized):
             raise AppError(
                 f'Колонка {column} таблицы {table}: некорректный формат ссылки '
                 f'"{value}". Ожидается формат table(column) или schema.table(column).'
+            )
+
+    def validate_constraint_expression(self, expression: str | None, table: str) -> None:
+        """Проверка формата table-level constraint (CHECK / UNIQUE).
+
+        Пользователь пишет ограничение целиком, включая ключевое слово.
+        Допустимы только формы:
+          CHECK (<выражение>)
+          UNIQUE (<колонки через запятую>) [WHERE <условие>]
+        """
+        if expression is None or not expression.strip():
+            return
+        expr = expression.strip()
+
+        if (';' in expr
+                or '--' in expr
+                or '/*' in expr
+                or '*/' in expr):
+            raise AppError(
+                f'Таблица {table}: недопустимое выражение "{expression}". '
+                f'Запрещены символы ";", "--", "/*", "*/" (защита от SQL-инъекций).'
+            )
+
+        if not _CONSTRAINT_KEYWORD_PATTERN.match(expr):
+            raise AppError(
+                f'Таблица {table}: ограничение "{expression}" должно начинаться '
+                f'с ключевого слова CHECK или UNIQUE.'
+            )
+
+        head_match = _CHECK_HEAD_PATTERN.match(expr) or _UNIQUE_HEAD_PATTERN.match(expr)
+        if not head_match:
+            raise AppError(
+                f'Таблица {table}: после ключевого слова в "{expression}" '
+                f'ожидается "(...)" с выражением или списком колонок.'
+            )
+
+        inner_start = head_match.end()
+        inner_end = self._find_matching_paren(expr, inner_start - 1)
+        if inner_end < 0:
+            raise AppError(
+                f'Таблица {table}: в выражении "{expression}" не сбалансированы скобки.'
+            )
+
+        inner = expr[inner_start:inner_end].strip()
+        if not inner:
+            raise AppError(
+                f'Таблица {table}: в выражении "{expression}" пустые скобки.'
+            )
+
+        tail = expr[inner_end + 1:]
+        is_unique = expr[:6].upper() == 'UNIQUE'
+        if is_unique:
+            if not _UNIQUE_TAIL_PATTERN.match(tail):
+                raise AppError(
+                    f'Таблица {table}: после UNIQUE(...) допустимо только '
+                    f'опциональное "WHERE <условие>". Получено: "{tail.strip()}".'
+                )
+        else:
+            if tail.strip():
+                raise AppError(
+                    f'Таблица {table}: после CHECK(...) не ожидается ничего, '
+                    f'получено: "{tail.strip()}".'
+                )
+
+    @staticmethod
+    def _find_matching_paren(text: str, open_idx: int) -> int:
+        """Возвращает индекс закрывающей `)` для открывающей по `open_idx`, или -1."""
+        depth = 0
+        for i in range(open_idx, len(text)):
+            ch = text[i]
+            if ch == '(':
+                depth += 1
+            elif ch == ')':
+                depth -= 1
+                if depth == 0:
+                    return i
+        return -1
+
+    def _validate_unique_columns(
+        self, expression: str, table_name: str,
+        column_names_lower: set[str], errors: list[str],
+    ) -> None:
+        expr = expression.strip()
+        head = _UNIQUE_HEAD_PATTERN.match(expr)
+        if not head:
+            return
+        end = self._find_matching_paren(expr, head.end() - 1)
+        if end < 0:
+            return
+        cols_raw = expr[head.end():end].strip()
+        if not cols_raw:
+            return
+        for part in cols_raw.split(','):
+            name = part.strip().strip('"')
+            if not name:
+                errors.append(
+                    f'Таблица {table_name}: в UNIQUE "{expression}" найден пустой элемент.'
+                )
+                continue
+            if not _IDENTIFIER_PATTERN.match(name):
+                errors.append(
+                    f'Таблица {table_name}: в UNIQUE "{expression}" значение "{name}" '
+                    f'не является корректным идентификатором колонки.'
+                )
+                continue
+            if name.lower() not in column_names_lower:
+                errors.append(
+                    f'Таблица {table_name}: в UNIQUE "{expression}" указана '
+                    f'несуществующая колонка "{name}".'
+                )
+
+    def _validate_check_columns(
+        self, expression: str, table_name: str,
+        column_names_lower: set[str], errors: list[str],
+    ) -> None:
+        expr = expression.strip()
+        head = _CHECK_HEAD_PATTERN.match(expr)
+        if not head:
+            return
+        end = self._find_matching_paren(expr, head.end() - 1)
+        if end < 0:
+            return
+        inner = expr[head.end():end]
+        # Убираем строковые литералы в одинарных кавычках ('' — экранированная кавычка).
+        inner = re.sub(r"'(?:[^']|'')*'", ' ', inner)
+
+        reported: set[str] = set()
+        for match in _IDENTIFIER_TOKEN_RE.finditer(inner):
+            token = match.group()
+            # Вызов функции: за идентификатором следует '(' → пропускаем имя функции.
+            rest = inner[match.end():].lstrip()
+            if rest.startswith('('):
+                continue
+            if token.upper() in _CHECK_KEYWORDS:
+                continue
+            if token.lower() in column_names_lower:
+                continue
+            if token.lower() in reported:
+                continue
+            reported.add(token.lower())
+            errors.append(
+                f'Таблица {table_name}: в CHECK "{expression}" указана '
+                f'несуществующая колонка "{token}".'
             )
 
     def _validate_identifier(self, entity: str, value: str, errors: list[str]) -> None:
