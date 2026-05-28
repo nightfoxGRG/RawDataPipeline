@@ -1,5 +1,5 @@
 # table_config_model.py
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 @dataclass
 class ColumnConfig:
@@ -20,3 +20,4 @@ class TableConfig:
     name: str
     columns: list[ColumnConfig]
     original_name: str | None = None
+    constraints: list[str] = field(default_factory=list)

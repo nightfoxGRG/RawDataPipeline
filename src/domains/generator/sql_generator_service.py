@@ -1,4 +1,7 @@
 # sql_generator_service.py
+import re
+from dataclasses import replace
+
 from common.context_service import ContextService
 from common.singleton_meta import SingletonMeta
 from common.error import AppError
@@ -23,10 +26,16 @@ from domains.users.model.user_info_model import UserInfoModel
 
 _SIZED_TYPES = {'varchar', 'character varying', 'char', 'character', 'numeric', 'decimal'}
 
-_AUTO_PK = ColumnConfig(name='id', db_type='bigserial', nullable=False, primary_key=True, label='Ид')
-PACKAGE_ID = ColumnConfig(name='__package_id', function = "PACKAGE_ID", db_type='varchar', size='36', nullable=False, label='Пакетный ид')
-PACKAGE_TIMESTAMP = ColumnConfig(name='__package_timestamp', function ="PACKAGE_TIMESTAMP", db_type='timestamptz', nullable=False, label='Пакетный временной штамп')
-SOURCE = ColumnConfig(name='__source', db_type='varchar', function ="SOURCE", size='200', nullable=False, label='Источник')
+_RENAME_ID_FROM = 'id'
+_RENAME_ID_TO = 'id_source'
+# Совпадает либо со строковым литералом в одинарных кавычках ('' — экранирование),
+# либо с целым идентификатором. Литералы при переименовании не трогаем.
+_TOKEN_OR_STRING_RE = re.compile(r"'(?:[^']|'')*'|[A-Za-z_][A-Za-z0-9_]*")
+
+_AUTO_PK = ColumnConfig(name='id', db_type='bigserial', nullable=False, primary_key=True, label='__Id')
+PACKAGE_ID = ColumnConfig(name='__package_id', function = "PACKAGE_ID", db_type='varchar', size='36', nullable=False, label='__Пакетный ид')
+PACKAGE_TIMESTAMP = ColumnConfig(name='__package_timestamp', function ="PACKAGE_TIMESTAMP", db_type='timestamptz', nullable=False, label='__Пакетный временной штамп')
+SOURCE = ColumnConfig(name='__source', db_type='varchar', function ="SOURCE", size='200', nullable=False, label='__Источник')
 
 
 class SqlGeneratorService(metaclass=SingletonMeta):
@@ -51,9 +60,11 @@ class SqlGeneratorService(metaclass=SingletonMeta):
         return project.table_config_minio_id
 
 
-    def generate_sql_from_system_config(self, form) -> tuple[str, bool, bool]:
+    def generate_sql_from_system_config(self, form) -> tuple[str, bool, bool, bool, str]:
+        rename_id = form.get('rename_id') == '1'
         add_pk = form.get('add_pk') == '1'
         add_package_fields = form.get('add_package_fields') == '1'
+        comment_format = form.get('comment_format', 'comment')  # 'comment' | 'dashes'
 
         user = ContextService.get_user_info()
         table_config_minio_id = self._get_table_config_minio_id(user)
@@ -61,8 +72,12 @@ class SqlGeneratorService(metaclass=SingletonMeta):
 
         tables = self._parser.parse_tables_config(content, 'config.xlsm')
         self._validator.validate_tables(tables)
-        sql_output = self.generate_sql(tables, add_pk=add_pk, add_package_fields=add_package_fields, schema=user.project_schema)
-        return sql_output, add_pk, add_package_fields
+        sql_output = self.generate_sql(
+            tables, add_pk=add_pk, add_package_fields=add_package_fields,
+            schema=user.project_schema, comment_format=comment_format,
+            rename_id=rename_id,
+        )
+        return sql_output, rename_id, add_pk, add_package_fields, comment_format
 
     def execute_sql_in_working_db(self, form) -> Response:
         """Регенерирует SQL из системного конфига в PostgreSQL-совместимом виде
@@ -74,6 +89,7 @@ class SqlGeneratorService(metaclass=SingletonMeta):
         """
         from sqlalchemy import text as sa_text
 
+        rename_id = form.get('rename_id') == '1'
         add_pk = form.get('add_pk') == '1'
         add_package_fields = form.get('add_package_fields') == '1'
         create_schema = form.get('create_schema') == '1'
@@ -90,6 +106,7 @@ class SqlGeneratorService(metaclass=SingletonMeta):
             add_package_fields=add_package_fields,
             schema=user.project_schema,
             for_execution=True,
+            rename_id=rename_id,
         )
 
         schema_exists = self._information_schema_repository.schema_exists(user.db_id, user.project_schema)
@@ -111,12 +128,32 @@ class SqlGeneratorService(metaclass=SingletonMeta):
         add_package_fields: bool = False,
         schema: str | None = None,
         for_execution: bool = False,
+        comment_format: str = 'comment',  # 'comment' | 'dashes'; ignored when for_execution=True
+        rename_id: bool = False,
     ) -> str:
         statements = []
         for table in tables:
             columns = list(table.columns)
+            constraints = list(table.constraints)
+
+            if rename_id:
+                columns = [
+                    replace(c, name=_RENAME_ID_TO) if c.name.lower() == _RENAME_ID_FROM else c
+                    for c in columns
+                ]
+                constraints = [
+                    self._rename_identifier(expr, _RENAME_ID_FROM, _RENAME_ID_TO)
+                    for expr in constraints
+                ]
 
             if add_pk and not any(c.primary_key for c in columns):
+                id_col = next((c for c in columns if c.name.lower() == _AUTO_PK.name), None)
+                if id_col is not None:
+                    raise AppError(
+                        f'Таблица {table.name}: колонка "{id_col.name}" существует, '
+                        f'но не помечена как первичный ключ. '
+                        f'Пометьте её как первичный ключ или снимите чекбокс "Добавить id".'
+                    )
                 columns = [_AUTO_PK] + columns
 
             if add_package_fields:
@@ -139,29 +176,49 @@ class SqlGeneratorService(metaclass=SingletonMeta):
                         pkg_cols.append(PACKAGE_TIMESTAMP)
                     columns = columns[:insert_at] + pkg_cols + columns[insert_at:]
 
+            seen: dict[str, int] = {}
+            for c in columns:
+                key = c.name.lower()
+                seen[key] = seen.get(key, 0) + 1
+            duplicates = sorted(k for k, cnt in seen.items() if cnt > 1)
+            if duplicates:
+                raise AppError(
+                    f'Таблица {table.name}: дублирующиеся колонки: {", ".join(duplicates)}.'
+                )
+
             parts_list = [self._column_parts(col) for col in columns]
             name_width = max(len(p[0]) for p in parts_list)
             type_width = max(len(p[1]) for p in parts_list)
 
             base_lines = []
-            for name, type_str, constraints, _label in parts_list:
+            for name, type_str, col_constraints, _label in parts_list:
                 line = f'    {name.ljust(name_width)}  {type_str.ljust(type_width)}'
-                if constraints:
-                    line += f'  {constraints}'
+                if col_constraints:
+                    line += f'  {col_constraints}'
                 base_lines.append(line.rstrip())
 
             last_idx = len(parts_list) - 1
             qualified_name = f'"{schema}"."{table.name}"' if schema else f'"{table.name}"'
 
+            has_constraints = bool(constraints)
+            n_constraints = len(constraints)
+            # last column gets a trailing comma if any table-level constraints follow
+            col_needs_comma = lambda i: (i != last_idx) or has_constraints
+            constraint_lines = [
+                f'    {expr}' + ('' if j == n_constraints - 1 else ',')
+                for j, expr in enumerate(constraints)
+            ]
+
             if for_execution:
                 # PostgreSQL-совместимый: COMMENT ON COLUMN отдельными statement'ами.
                 lines = [
-                    base_lines[i] if i == last_idx else base_lines[i] + ','
+                    base_lines[i] + (',' if col_needs_comma(i) else '')
                     for i in range(len(parts_list))
                 ]
+                lines.extend(constraint_lines)
                 block = (
                     f'drop table if exists {qualified_name};\n'
-                    f'create table {qualified_name} (\n{chr(10).join(lines)}\n);'
+                    f'create table if not exists {qualified_name} (\n{chr(10).join(lines)}\n);'
                 )
                 comment_lines = [
                     f'comment on column {qualified_name}."{name}" is \'{label.replace(chr(39), chr(39)*2)}\';'
@@ -170,27 +227,59 @@ class SqlGeneratorService(metaclass=SingletonMeta):
                 ]
                 if comment_lines:
                     block += '\n' + '\n'.join(comment_lines)
-            else:
-                # Отображение: inline `COMMENT 'label'` (читаемый формат).
+            elif comment_format == 'dashes':
+                # Отображение: inline `-- label`.
                 labelled_widths = [len(base_lines[i]) + 1 for i, (_, _, _, lbl) in enumerate(parts_list) if lbl]
                 comment_col = max(labelled_widths, default=0)
                 lines = []
                 for i, (_name, _type_str, _constraints, label) in enumerate(parts_list):
                     base = base_lines[i]
-                    is_last = (i == last_idx)
+                    suffix = ',' if col_needs_comma(i) else ''
                     if label:
-                        escaped = label.replace("'", "''")
-                        suffix = ',' if not is_last else ''
-                        lines.append(base.ljust(comment_col) + f"  COMMENT '{escaped}'{suffix}")
+                        lines.append(base.ljust(comment_col) + suffix + f'  -- {label}')
                     else:
-                        lines.append(base if is_last else base + ',')
+                        lines.append(base + suffix)
+                lines.extend(constraint_lines)
                 block = (
                     f'drop table if exists {qualified_name};\n'
-                    f'create table {qualified_name} (\n{chr(10).join(lines)}\n);'
+                    f'create table if not exists {qualified_name} (\n{chr(10).join(lines)}\n);'
+                )
+            else:
+                # Отображение: inline `COMMENT 'label'` (читаемый формат, по умолчанию).
+                labelled_widths = [len(base_lines[i]) + 1 for i, (_, _, _, lbl) in enumerate(parts_list) if lbl]
+                comment_col = max(labelled_widths, default=0)
+                lines = []
+                for i, (_name, _type_str, _constraints, label) in enumerate(parts_list):
+                    base = base_lines[i]
+                    suffix = ',' if col_needs_comma(i) else ''
+                    if label:
+                        escaped = label.replace("'", "''")
+                        lines.append(base.ljust(comment_col) + f"  COMMENT '{escaped}'{suffix}")
+                    else:
+                        lines.append(base + suffix)
+                lines.extend(constraint_lines)
+                block = (
+                    f'drop table if exists {qualified_name};\n'
+                    f'create table if not exists {qualified_name} (\n{chr(10).join(lines)}\n);'
                 )
 
             statements.append(block)
         return '\n\n'.join(statements)
+
+    @staticmethod
+    def _rename_identifier(expression: str, from_name: str, to_name: str) -> str:
+        """Заменяет целые идентификаторы ``from_name`` на ``to_name`` в выражении
+        ограничения (CHECK/UNIQUE), не затрагивая строковые литералы и подстроки
+        внутри других идентификаторов (``valid``, ``id_source`` и т.п.)."""
+        from_lower = from_name.lower()
+
+        def repl(match: re.Match) -> str:
+            token = match.group()
+            if token.startswith("'"):
+                return token
+            return to_name if token.lower() == from_lower else token
+
+        return _TOKEN_OR_STRING_RE.sub(repl, expression)
 
     def format_column(self, column: ColumnConfig) -> str:
         name, type_str, constraints, label = self._column_parts(column)
@@ -214,7 +303,7 @@ class SqlGeneratorService(metaclass=SingletonMeta):
             constraints.append('primary key')
         if column.foreign_key:
             constraints.append(f'references {column.foreign_key}')
-        return column.name, type_str, ' '.join(constraints), column.label or ''
+        return column.name, type_str, ' '.join(constraints), column.label or column.name
 
     @staticmethod
     def _format_default(value: str, db_type: str) -> str:

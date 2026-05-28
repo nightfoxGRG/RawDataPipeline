@@ -1,5 +1,6 @@
 # table_config_parser_service.py
 import json
+import re
 from io import BytesIO
 from pathlib import Path
 
@@ -20,6 +21,7 @@ UNIQUE_LABELS = {'уникальность', 'unique'}
 PRIMARY_KEY_LABELS = {'первичный ключ', 'primary_key'}
 FOREIGN_KEY_LABELS = {'внешний ключ', 'foreign_key'}
 DEFAULT_LABELS = {'значение по умолчанию', 'default'}
+TABLE_CONSTRAINTS_LABELS = {'check/unique (через ,)', 'table_constraints'}
 
 
 class TableConfigParserService(metaclass=SingletonMeta):
@@ -87,7 +89,15 @@ class TableConfigParserService(metaclass=SingletonMeta):
                     default=self._normalize_text(column_item.get('default')),
                     label=self._normalize_text(column_item.get('column_name')),
                 ))
-            tables.append(TableConfig(name=table_name, columns=columns))
+
+            raw_constraints = table_item.get('constraints')
+            if isinstance(raw_constraints, list):
+                constraints = [str(c).strip() for c in raw_constraints if str(c).strip()]
+            else:
+                constraints = self._split_constraints(self._normalize_text(raw_constraints))
+            for expr in constraints:
+                self._validator.validate_constraint_expression(expr, table_name)
+            tables.append(TableConfig(name=table_name, columns=columns, constraints=constraints))
 
         return tables
 
@@ -149,7 +159,17 @@ class TableConfigParserService(metaclass=SingletonMeta):
         if len(rows) < 2:
             return []
 
-        table_row, header_row = rows[0], rows[1]
+        # Detect optional `Check/Unique (через ,)` row inserted between table-name row and headers.
+        table_row = rows[0]
+        constraints_raw: str | None = None
+        if len(rows) > 2 and rows[1] and self._label(rows[1][0] if rows[1] else None) in TABLE_CONSTRAINTS_LABELS:
+            constraints_raw = self._cell(rows[1], 1)
+            header_row = rows[2]
+            data_rows = rows[3:]
+        else:
+            header_row = rows[1]
+            data_rows = rows[2:]
+
         block_starts = [i for i, cell in enumerate(header_row) if self._label(cell) in COLUMN_NAME_LABELS]
 
         tables: list[TableConfig] = []
@@ -187,7 +207,7 @@ class TableConfigParserService(metaclass=SingletonMeta):
             default_col = self._find_col(header_map, DEFAULT_LABELS)
 
             columns: list[ColumnConfig] = []
-            for row in rows[2:]:
+            for row in data_rows:
                 code = self._cell(row, code_col)
                 if not code:
                     continue
@@ -196,6 +216,8 @@ class TableConfigParserService(metaclass=SingletonMeta):
                     raise AppError(f'У колонки {code} таблицы {table_name} не указан тип.')
 
                 fk_value = self._cell(row, fk_col) if fk_col is not None else None
+                if fk_value:
+                    fk_value = re.sub(r'\s*\(\s*', '(', re.sub(r'\s*\)\s*$', ')', fk_value.strip()))
                 req_val = self._cell(row, required_col) if required_col is not None else None
                 uniq_val = self._cell(row, unique_col) if unique_col is not None else None
                 pk_val = self._cell(row, pk_col) if pk_col is not None else None
@@ -215,7 +237,16 @@ class TableConfigParserService(metaclass=SingletonMeta):
                     default=self._cell(row, default_col) if default_col is not None else None,
                     label=self._cell(row, name_col) if name_col is not None else None,
                 ))
-            tables.append(TableConfig(name=table_name, columns=columns, original_name=original_name))
+
+            # Table-level constraints: only the first table block carries `constraints_raw`
+            # (single source column 1 on the `Check/Unique (через ,)` row).
+            constraints = self._split_constraints(constraints_raw) if i == 0 else []
+            for expr in constraints:
+                self._validator.validate_constraint_expression(expr, table_name)
+            tables.append(TableConfig(
+                name=table_name, columns=columns,
+                original_name=original_name, constraints=constraints,
+            ))
 
         return tables
 
@@ -249,6 +280,7 @@ class TableConfigParserService(metaclass=SingletonMeta):
         primary_key_row = self._find_row(row_map, PRIMARY_KEY_LABELS)
         foreign_key_row = self._find_row(row_map, FOREIGN_KEY_LABELS)
         default_row = self._find_row(row_map, DEFAULT_LABELS)
+        table_constraints_row = self._find_row(row_map, TABLE_CONSTRAINTS_LABELS)
 
         max_len = max(len(r) for r in [code_row, type_row] + [x for x in [
             name_row, size_row, required_row, unique_row, primary_key_row, foreign_key_row, default_row
@@ -264,6 +296,8 @@ class TableConfigParserService(metaclass=SingletonMeta):
                 raise AppError(f'У колонки {name} таблицы {table_name} не указан тип.')
 
             foreign_key_value = self._cell(foreign_key_row, idx)
+            if foreign_key_value:
+                foreign_key_value = re.sub(r'\s*\(\s*', '(', re.sub(r'\s*\)\s*$', ')', foreign_key_value.strip()))
             self._validator.validate_yes_no_cell(self._cell(required_row, idx), 'Обязательность', name, table_name)
             self._validator.validate_yes_no_cell(self._cell(unique_row, idx), 'Уникальность', name, table_name)
             self._validator.validate_yes_no_cell(self._cell(primary_key_row, idx), 'Первичный ключ', name, table_name)
@@ -280,7 +314,16 @@ class TableConfigParserService(metaclass=SingletonMeta):
                 label=self._cell(name_row, idx),
             ))
 
-        return TableConfig(name=table_name, columns=columns, original_name=original_name), end_index
+        # Table-level constraints from `Check/Unique (через ,)` row, second column.
+        constraints_raw = self._cell(table_constraints_row, 1) if table_constraints_row else None
+        constraints = self._split_constraints(constraints_raw)
+        for expr in constraints:
+            self._validator.validate_constraint_expression(expr, table_name)
+
+        return TableConfig(
+            name=table_name, columns=columns,
+            original_name=original_name, constraints=constraints,
+        ), end_index
 
     @staticmethod
     def _find_row(row_map: dict[str, list], names: set[str]) -> list | None:
@@ -312,6 +355,35 @@ class TableConfigParserService(metaclass=SingletonMeta):
         if not text:
             return None
         return text.lower() if lower else text
+
+    @staticmethod
+    def _split_constraints(value: str | None) -> list[str]:
+        """Split comma-separated table-level constraint expressions; respect
+        parentheses depth so commas inside e.g. `UNIQUE (a, b)` don't split
+        the expression."""
+        if not value or not value.strip():
+            return []
+        result: list[str] = []
+        current: list[str] = []
+        depth = 0
+        for ch in value:
+            if ch == '(':
+                depth += 1
+                current.append(ch)
+            elif ch == ')':
+                depth -= 1
+                current.append(ch)
+            elif ch == ',' and depth == 0:
+                piece = ''.join(current).strip()
+                if piece:
+                    result.append(piece)
+                current = []
+            else:
+                current.append(ch)
+        piece = ''.join(current).strip()
+        if piece:
+            result.append(piece)
+        return result
 
     def _first_non_empty(self, values: list) -> str | None:
         for value in values:

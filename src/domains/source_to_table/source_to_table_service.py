@@ -48,16 +48,18 @@ class SourceToTableService(metaclass=SingletonMeta):
 
         table_names = [t.name for t in tables]
 
-        table_db_columns: dict[str, list[str]] = {}
+        # (имя колонки, комментарий) — комментарий хранит исходный код колонки,
+        # по нему сопоставляем источник, что устойчиво к переименованию id → id_source.
+        table_db_columns: dict[str, list[tuple[str, str | None]]] = {}
         table_serial_cols: dict[str, set[str]] = {}
         for table in tables:
-            rows = self._information_schema_repository.get_column_names_with_defaults(
+            rows = self._information_schema_repository.get_table_columns(
                 user.db_id, user.project_schema, table.name,
-            )
-            table_db_columns[table.name] = [row[0] for row in rows]
+            )  # (column_name, ordinal_position, comment, column_default)
+            table_db_columns[table.name] = [(row[0], row[2]) for row in rows]
             table_serial_cols[table.name] = {
                 row[0].lower() for row in rows
-                if (row[1] or '').lower().startswith('nextval(')
+                if (row[3] or '').lower().startswith('nextval(')
             }
 
         conflicting = self._source_to_table_repository.find_existing_table_names(user.project_id, table_names)
@@ -109,17 +111,45 @@ class SourceToTableService(metaclass=SingletonMeta):
             config_id = config_id_map.get(table.name)
             if not config_id:
                 continue
-            db_col_names = table_db_columns.get(table.name, [])
+            db_columns = table_db_columns.get(table.name, [])
             serial_cols = table_serial_cols.get(table.name, set())
-            config_by_name = {col.name.lower(): col for col in table.columns}
-            config_order = {col.name.lower(): i + 1 for i, col in enumerate(table.columns)}
-            for db_col in db_col_names:
-                config_col = config_by_name.get(db_col.lower())
+
+            # Источник сопоставляем по комментарию колонки БД: генератор пишет в
+            # COMMENT исходный код колонки (label из конфига, либо имя при пустом
+            # label). Это устойчиво к переименованию id → id_source и к авто-колонкам
+            # (__source/__package_*/auto-id) — их «__»-комментарии не совпадают ни с
+            # одним исходным кодом, поэтому они остаются без источника.
+            # Ключи: label (приоритет) и имя колонки конфига — на случай пустого label.
+            config_lookup: dict[str, tuple] = {}
+            for i, col in enumerate(table.columns):
+                order = i + 1
+                if col.name:
+                    config_lookup.setdefault(col.name.strip().lower(), (col, order))
+            for i, col in enumerate(table.columns):
+                order = i + 1
+                if col.label:
+                    config_lookup[col.label.strip().lower()] = (col, order)
+
+            for db_col, comment in db_columns:
                 col_lower = db_col.lower()
-                func_val = None
+
+                # bigserial-колонки (nextval) всегда идут как SERIAL без источника.
                 if col_lower in serial_cols:
-                    func_val = 'SERIAL'
-                elif col_lower == PACKAGE_ID.name:
+                    records.append(SourceToTableModel(
+                        source_to_table_config_id=config_id,
+                        source_column=None,
+                        source_column_order=0,
+                        table_column=db_col,
+                        function='SERIAL',
+                        created_by=user.user_id,
+                    ))
+                    continue
+
+                match_key = (comment or '').strip().lower()
+                matched = config_lookup.get(match_key) if match_key else None
+
+                func_val = None
+                if col_lower == PACKAGE_ID.name:
                     func_val = PACKAGE_ID.function
                 elif col_lower == PACKAGE_TIMESTAMP.name:
                     func_val = PACKAGE_TIMESTAMP.function
@@ -127,8 +157,8 @@ class SourceToTableService(metaclass=SingletonMeta):
                     func_val = SOURCE.function
                 records.append(SourceToTableModel(
                     source_to_table_config_id=config_id,
-                    source_column=config_col.label if config_col else None,
-                    source_column_order=config_order.get(db_col.lower(), 0),
+                    source_column=matched[0].label if matched else None,
+                    source_column_order=matched[1] if matched else 0,
                     table_column=db_col,
                     function=func_val,
                     created_by=user.user_id,
