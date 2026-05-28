@@ -217,7 +217,8 @@ class TableConfigGeneratorService(metaclass=SingletonMeta):
         object_name = project.table_config_minio_id
 
         content = self._storage.download_bytes(TABLE_CONFIG_BUCKET, object_name)
-        return self._build_xlsm_response(content, f'{object_name}.xlsm')
+        download_name = object_name.split('/')[-1]
+        return self._build_xlsm_response(content, f'{download_name}.xlsm')
 
     def validate_table_config_system(self) -> Response:
         user = ContextService.get_user_info()
