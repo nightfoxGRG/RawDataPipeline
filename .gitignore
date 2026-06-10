@@ -29,3 +29,6 @@ build/RawDataPipeline/xref-RawDataPipeline.html
 .DS_Store
 /build/RawDataPipeline/
 docker/containers_data/
+resources/config.local.toml
+.DS_Store
+resources/.DS_Store
