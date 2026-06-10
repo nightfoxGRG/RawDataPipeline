@@ -5,7 +5,7 @@ __pycache__/
 .venv2/
 # Локальный конфиг с секретами — не коммитить
 /.idea/.name
-/src/config/config.local.toml
+resources/config.local.toml
 /.idea/copilot.data.migration.ask2agent.xml
 /.idea/copilotDiffState.xml
 /.idea/RawDataPipeline.iml
@@ -29,3 +29,4 @@ build/RawDataPipeline/warn-RawDataPipeline.txt
 build/RawDataPipeline/xref-RawDataPipeline.html
 .DS_Store
 /build/RawDataPipeline/
+docker/containers_data/

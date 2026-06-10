@@ -17,7 +17,7 @@ endpoint       = "localhost:50002"
 access_key     = "minioadmin"
 secret_key     = "minioadmin"
 secure         = false
-default_bucket = "data-pipeline"
+default_bucket = "raw-data-pipeline"
 
 [translation]
 # URL of the LibreTranslate service used to translate Cyrillic column headers
@@ -31,5 +31,5 @@ api_key = ""
 [keycloak]
 server_url    = "http://localhost:50004"
 realm         = "master"
-client_id     = "data-pipeline-pro"
+client_id     = "raw-data-pipeline"
 client_secret = ""
