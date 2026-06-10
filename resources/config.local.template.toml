@@ -7,11 +7,9 @@
 [database]
 host     = "localhost"
 port     = 5432
-name     = ""
-schema   = "raw_data_pipline_schema"
+name     = "raw_data_pipeline"
 user     = ""
 password = ""
 
-[translation]
-libretranslate_url = "http://127.0.0.1:50001"
-api_key = ""
+[keycloak]
+client_secret = ""
