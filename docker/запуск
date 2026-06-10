@@ -1,11 +1,13 @@
 
-docker-compose -f postgres.yml -p data_pipeline_pro up -d
+docker-compose -f all.yml -p raw_data_pipeline up -d
 
-docker compose -f libretranslate.yml -p data_pipeline_pro up -d
+docker-compose -f postgres.yml -p raw_data_pipeline up -d
 
-docker-compose -f minio.yml -p data_pipeline_pro up -d
+docker compose -f libretranslate.yml -p raw_data_pipeline up -d
 
-docker compose -f keycloak.yml -p data_pipeline_pro up -d
+docker-compose -f minio.yml -p raw_data_pipeline up -d
+
+docker compose -f keycloak.yml -p raw_data_pipeline up -d
 
 ------------------------------------------
 скачать модели для LibreTranslate
@@ -20,6 +22,9 @@ https://www.argosopentech.com/argospm/index/ru_en.argosmodel
 
 -------------------------------------------
 minio
+
+не надо создавать бакеты вручную, приложение само их создаст при первом запуске. Но если хотите, можете создать их заранее:
+
 создать 2 бакета 
 data-pipeline-table-config
 data-pipeline-table-config-arch
@@ -66,15 +71,29 @@ json
 -------------------------------------------
 keycloak
 
-docker compose -f docker/keycloak.yml up -d
+
+В базе данных создать схему keycloak
+
 
 http://localhost:50004
 
 KEYCLOAK_ADMIN: admin
 KEYCLOAK_ADMIN_PASSWORD: admin
 
+Создать пользователя с правами админа
+Войдите в Admin Console как текущий администратор (например, admin).
+
+Перейдите в раздел Users (Пользователи) и выберите нужного пользователя.
+
+Откройте вкладку Role mapping (Маппинг ролей).
+
+Нажмите Assign role (Назначить роль).
+
+В фильтре Filter by realm roles (Фильтр по ролям реалма) найдите роль admin. Выберите её и назначьте.
+
+
 Открыть http://localhost:50004 → admin/admin
-Создать клиент data-pipeline-pro (Client authentication: ON, redirect URI: http://localhost:8080/callback)
+Создать клиент raw-data-pipeline (Client authentication: ON, redirect URI: http://localhost:8080/callback)
 Скопировать Client Secret → в resources/config.local.toml:
 
 Приложение запускается на http://127.0.0.1:8080 (см. app.py:272).
@@ -82,11 +101,13 @@ KEYCLOAK_ADMIN_PASSWORD: admin
 В Keycloak клиенте:
 
 Поле	Значение
-Root URL	http://127.0.0.1:8080
-Valid redirect URIs	http://127.0.0.1:8080/callback
-Web origins	http://127.0.0.1:8080
+Root URL	http://localhost:8080
+Valid redirect URIs	http://localhost:8080/callback
+Valid post logout redirect URIs http://localhost:8080/login
+Web origins	http://localhost:8080
 
 В admin console → Clients → data-pipeline-pro → Client scopes:
 
 profile и email должны быть в колонке Assigned default client scopes (не optional)
 Тогда userinfo будет содержать given_name, family_name, email
+

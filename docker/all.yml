@@ -1,0 +1,68 @@
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    container_name: keycloak
+    restart: unless-stopped
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://host.docker.internal:5432/raw_data_pipeline
+      KC_DB_SCHEMA: keycloak
+      KC_DB_USERNAME: user
+      KC_DB_PASSWORD: password
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HOSTNAME: localhost
+      KC_HTTP_ENABLED: "true"
+    command: start-dev
+    ports:
+      - "50004:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - /Volumes/External_SSD/work/docker_volumes/RawDataPipeline/keycloak_data:/opt/keycloak/data
+
+  libretranslate:
+      image: libretranslate/libretranslate:latest
+      container_name: libretranslate-offline
+      restart: unless-stopped
+      ports:
+        - "50001:5000"
+      volumes:
+        # Укажите ПУТЬ К РАСПАКОВАННЫМ моделям на хосте
+        - /Volumes/External_SSD/work/docker_volumes/RawDataPipeline/LibreTranslate_modules:/home/libretranslate/.local/share/argos-translate/packages:rw
+      command: --load-only en,ru
+      environment:
+        - LT_UPDATE_MODELS=false    # Запрет обновлений
+        - LT_REQUIRE_API_KEY_ORIGIN=false
+        - LT_API_KEYS=false
+        - REQUIRE_API_KEY=false
+      user: "0:0"  # Запуск от root
+      security_opt:
+        - label:disable  # Для некоторых систем
+
+  minio:
+    image: minio/minio:RELEASE.2025-05-24T17-08-30Z
+    container_name: minio-server
+    ports:
+      - "50002:9000"      # API порт (S3 совместимый)
+      - "50003:9001"      # Web консоль (дополнительно, но удобно)
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+     - /Volumes/External_SSD/work/docker_volumes/RawDataPipeline/minio_data:/data
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:latest
+    container_name: my-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: raw_data_pipeline
+    ports:
+      - "5432:5432"
+    volumes:
+      - /Volumes/External_SSD/work/docker_volumes/RawDataPipeline/postgresql_data:/var/lib/postgresql

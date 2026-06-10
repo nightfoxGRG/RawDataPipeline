@@ -28,8 +28,8 @@ from utils.file_util import read_uploaded_file
 TABLE_CONFIG_BUCKET = 'data-pipeline-table-config'
 _TEMPLATE_PATH = ProjectPaths.TABLE_CONFIG_TEMPLATE
 _V2_DATA_COLS = 9
-_TC_DATA_ROWS = 10
-_TC_BLOCK_STRIDE = 12
+_TC_DATA_ROWS = 11
+_TC_BLOCK_STRIDE = 13
 _TC_MAX_BLOCKS = 5
 _TABLE_CONFIG_BUCKET_ARCH = 'data-pipeline-table-config-arch'
 
@@ -385,27 +385,27 @@ class TableConfigGeneratorService(metaclass=SingletonMeta):
     def _fill_tc_block(
         self, ws, start_row: int, table_name: str, columns: list[dict], original_name: str | None = None
     ) -> None:
-        # Row offsets within block: 0=table name, 1=label, 2=code, 3=type, 4=size,
-        # 5=mandatory, 6=unique, 7=pk, 8=fk, 9=default
+        # Row offsets within block: 0=table name, 1=check/unique, 2=label, 3=code, 4=type,
+        # 5=size, 6=mandatory, 7=unique, 8=pk, 9=fk, 10=default
         ws.cell(row=start_row, column=2).value = table_name
         if original_name:
             ws.cell(row=start_row, column=3).value = original_name
         for col_idx, col_info in enumerate(columns, start=2):
-            ws.cell(row=start_row + 1, column=col_idx).value = col_info.get('label') or col_info['code']
-            ws.cell(row=start_row + 2, column=col_idx).value = col_info['code']
-            ws.cell(row=start_row + 3, column=col_idx).value = col_info['db_type']
+            ws.cell(row=start_row + 2, column=col_idx).value = col_info.get('label') or col_info['code']
+            ws.cell(row=start_row + 3, column=col_idx).value = col_info['code']
+            ws.cell(row=start_row + 4, column=col_idx).value = col_info['db_type']
             if col_info.get('size'):
-                ws.cell(row=start_row + 4, column=col_idx).value = col_info['size']
+                ws.cell(row=start_row + 5, column=col_idx).value = col_info['size']
             if col_info.get('nullable') is False:
-                ws.cell(row=start_row + 5, column=col_idx).value = 'да'
-            if col_info.get('unique'):
                 ws.cell(row=start_row + 6, column=col_idx).value = 'да'
-            if col_info.get('primary_key'):
+            if col_info.get('unique'):
                 ws.cell(row=start_row + 7, column=col_idx).value = 'да'
+            if col_info.get('primary_key'):
+                ws.cell(row=start_row + 8, column=col_idx).value = 'да'
             if col_info.get('foreign_key'):
-                ws.cell(row=start_row + 8, column=col_idx).value = col_info['foreign_key']
+                ws.cell(row=start_row + 9, column=col_idx).value = col_info['foreign_key']
             if col_info.get('default') is not None:
-                ws.cell(row=start_row + 9, column=col_idx).value = col_info['default']
+                ws.cell(row=start_row + 10, column=col_idx).value = col_info['default']
 
     def generate_excel_config_v2(self, table_name: str, columns: list[dict]) -> bytes:
         wb = load_workbook(_TEMPLATE_PATH, keep_vba=True)
