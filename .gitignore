@@ -5,7 +5,6 @@ __pycache__/
 .venv2/
 # Локальный конфиг с секретами — не коммитить
 /.idea/.name
-resources/config.local.toml
 /.idea/copilot.data.migration.ask2agent.xml
 /.idea/copilotDiffState.xml
 /.idea/RawDataPipeline.iml
